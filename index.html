@@ -975,6 +975,7 @@ function rlist(){
       (m.idBy==='typed'?`<div class="alert warn" style="margin:0 0 9px;padding:9px 11px;font-size:12px"><b>ID was typed, not scanned</b> — check the man in front of you is really <b>${esc(m.tech)}</b>.</div>`:'');
     if(m.status==='PENDING')ban=`<div class="actban ret"><span class="ar">↓</span> Returning a tool <span class="sm2">check it and accept</span></div>`;
     return `<div class="rec">${ban}<div class="hd"><span class="rid">${t[T_ID]}</span><span class="rname">${esc(t[T_NAME]||'(no name)')}</span>${b}</div>
+      <div class="sub" style="font-weight:700;color:var(--brass)">${ref(t)}${t[T_LOC]?' · '+esc(t[T_LOC]):''}${t[T_TYPE]==='Set'?' · Set':''}</div>
       <div class="sub">${esc(m.tech)} · ${esc(m.sec)} · ${when}</div>
       ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}
       ${m.status==='PENDING'?`<div class="sub">Returned ${fmtTime(m.ret)} · condition <b>${m.cin}</b>${m.note?' — '+esc(m.note):''}</div>`:''}
@@ -983,7 +984,7 @@ function rlist(){
       ${m.outBy?`<div class="sub">Handed over by <b>${esc(m.outBy)}</b></div>`:''}
       ${m.inBy?`<div class="sub">Taken back by <b>${esc(m.inBy)}</b></div>`:''}
       ${m.status==='OUT'&&m.noPhone?`<div class="row2"><button class="btn green sm" onclick="npReturn('${m.id}')">Take back (no phone)</button></div>`:''}
-      ${m.status==='REQ'?`<div class="sub" style="color:var(--brass);font-weight:600">Location: ${esc(t[T_LOC]||'')}</div><div class="row2"><button class="btn red sm" onclick="reqRej('${m.id}')">Decline</button><button class="btn green sm" onclick="reqOk('${m.id}')">Accept — give tool</button></div>`:''}
+      ${m.status==='REQ'?`<div class="row2"><button class="btn red sm" onclick="reqRej('${m.id}')">Decline</button><button class="btn green sm" onclick="reqOk('${m.id}')">Accept — give tool</button></div>`:''}
       ${m.status==='PENDING'?`<div class="row2"><button class="btn red sm" onclick="rej('${m.id}')">Reject</button><button class="btn green sm" onclick="cin('${m.id}')">Accept — take back</button></div>`:''}</div>`;
   }).join('');
 }
