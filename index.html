@@ -311,6 +311,31 @@ body{background:var(--porcelain)!important;color:var(--ink)!important}
    The dark pill is restored everywhere - dashboard tabs, damaged chips, all-tools chips. */
 .tab.on{background:var(--obsidian)!important;color:#fff!important;border-color:var(--obsidian)!important}
 .tab.on .c{color:#fff!important;opacity:.8}
+
+/* FIX: the tab strip was 1034px wide on a 358px phone, so five tabs - including
+   LIVE TOOLS - were scrolled off the screen and the store keeper could not find them.
+   The strip now WRAPS onto as many rows as it needs. Nothing is ever hidden. */
+#tabs{flex-wrap:wrap!important;overflow-x:visible!important;row-gap:7px}
+#tabs .tab{flex:0 0 auto}
+
+/* the LIVE TOOLS button - one black frame, the whole store in one tap */
+.livebtn{display:block;width:100%;margin:14px 0 16px;padding:16px 18px;text-align:left;line-height:1.35}
+.livebtn .lt1{display:block;font-size:16px;font-weight:800;letter-spacing:.06em}
+.livebtn .lt2{display:block;margin-top:5px;font-size:11.5px;font-weight:600;opacity:.72;letter-spacing:.02em}
+
+/* Condition report - shown to the store keeper before he accepts a returned tool.
+   Quiet panel, same language as the rest of the app. Only the grade is red. */
+.condrep{margin:11px 0 4px;border:1px solid #e6d9d9;border-radius:12px;background:#fdfbfb;overflow:hidden}
+.condrep .cr-top{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:10px 13px;border-bottom:1px solid #efe6e6;background:#fbf6f6}
+.condrep .cr-lab{font-size:10.5px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:#8a7b7b}
+.condrep .cr-grade{font-size:12.5px;font-weight:800;color:var(--red);white-space:nowrap}
+.condrep .cr-note{padding:12px 13px 4px}
+.condrep .cr-nl{display:block;font-size:10.5px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:#8a7b7b;margin-bottom:6px}
+.condrep .cr-note p{margin:0;padding:10px 12px;border-left:3px solid var(--red);background:#fff;border-radius:0 8px 8px 0;
+  font-size:14px;line-height:1.5;color:var(--ink);font-weight:600}
+.condrep .kv{padding:7px 13px;border:0}
+.condrep .cr-foot{padding:9px 13px 12px;font-size:11.5px;color:#8a7b7b;font-weight:600}
 </style>
 </head>
 <body>
@@ -978,6 +1003,10 @@ function dash(){
     <div class="stat red tap" onclick="stab('damaged')"><div class="n">${c.damaged}</div><div class="l">Damaged</div></div></div>
     ${c.reqs?`<div class="alert warn" onclick="stab('requests')" style="cursor:pointer"><b>TAKE — ${c.reqs} tool${c.reqs>1?'s':''}</b> waiting for you to hand over ›</div>`:''}
     ${c.pending?`<div class="alert warn" onclick="stab('pending')" style="cursor:pointer"><b>RETURN — ${c.pending} tool${c.pending>1?'s':''}</b> waiting for you to receive ›</div>`:''}
+    <button class="btn primary livebtn" onclick="stab('all')">
+      <span class="lt1">&#128736;&nbsp; LIVE TOOLS</span>
+      <span class="lt2">all ${c.total} tools &middot; ${c.inStore} in store &middot; ${c.out} out${c.overdue?' &middot; '+c.overdue+' overdue':''}${c.damaged?' &middot; '+c.damaged+' damaged':''}</span>
+    </button>
     <div class="tabs" id="tabs"></div><div class="card" id="list" style="padding:6px 14px"></div>
     <button class="btn ghost" onclick="npStart()" style="margin-top:6px">&#128241; Technician without phone — issue manually</button>
     <button class="btn primary" onclick="reportPick()" style="margin-top:10px">Monthly report</button>
@@ -992,7 +1021,8 @@ function stab(t){TAB=t;if(!$('tabs')){dash();}else{dtabs();rlist();window.scroll
 function dtabs(){const c=counts();const today=LOG.filter(m=>m.kind==='TOOL'&&isToday(m.out)).length;
   const map={};toolMoves().forEach(m=>{if(m.status!=='IN')map[m.tid]=m;});
   const techN=new Set(Object.values(map).map(m=>m.techId)).size;
-  const defs=[['requests','TAKE — hand over',c.reqs],['pending','RETURN — receive',c.pending],['out','Out',c.out],['overdue','Overdue',c.overdue],['bytech','By technician',techN],['damaged','Damaged',c.damaged],['history','History',today],['entries','Entries',LOG.filter(m=>m.kind==='ENTRY'&&isToday(m.at)).length],['all','All tools',c.total]];
+  // LIVE TOOLS first - it is the screen he opens most. The rest follow the day's work.
+  const defs=[['requests','TAKE — hand over',c.reqs],['pending','RETURN — receive',c.pending],['damaged','Damaged',c.damaged],['out','Out',c.out],['overdue','Overdue',c.overdue],['bytech','By technician',techN],['history','History',today],['entries','Entries',LOG.filter(m=>m.kind==='ENTRY'&&isToday(m.at)).length]];
   $('tabs').innerHTML=defs.map(([k,l,n])=>`<button class="tab ${TAB===k?'on':''}" onclick="stab('${k}')">${l}<span class="c">${n}</span></button>`).join('');
 }
 function rlist(){
@@ -1026,8 +1056,15 @@ function rlist(){
       <div class="sub" style="font-weight:700;color:var(--brass)">${meta(t)}</div>
       <div class="sub">${esc(m.tech)} · ${esc(m.sec)} · ${when}</div>
       ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}
-      ${m.status==='PENDING'?`<div class="sub">Returned ${fmtTime(m.ret)} · condition <b>${m.cin}</b>${m.note?' — '+esc(m.note):''}</div>`:''}
-      ${dmg?`<div class="alert red" style="margin:8px 0 0">Defect reported — check before confirming</div>`:''}
+      ${m.status==='PENDING'&&!dmg?`<div class="sub">Returned ${fmtTime(m.ret)} &middot; condition <b>A &mdash; Good</b></div>`:''}
+      ${dmg?`<div class="condrep">
+          <div class="cr-top"><span class="cr-lab">Condition reported</span><span class="cr-grade">${m.cin} &mdash; ${GRADE_WORD[m.cin]||''}</span></div>
+          <div class="cr-note"><span class="cr-nl">Technician's note</span>
+            <p>${m.note?esc(m.note):'<i>No note was entered.</i>'}</p></div>
+          <div class="kv"><span class="k">Reported by</span><span class="v">${esc(m.tech)} &middot; ${esc(m.sec)}</span></div>
+          <div class="kv"><span class="k">Returned</span><span class="v">${fmtTime(m.ret)}</span></div>
+          <div class="cr-foot">Inspect the tool before accepting it back.</div>
+        </div>`:''}
       ${m.noPhone?`<div class="sub" style="color:var(--red);font-weight:700">NO PHONE — issued manually by ${esc(m.outBy||'store keeper')}</div>`:''}
       ${m.outBy?`<div class="sub">Handed over by <b>${esc(m.outBy)}</b></div>`:''}
       ${m.inBy?`<div class="sub">Taken back by <b>${esc(m.inBy)}</b></div>`:''}
