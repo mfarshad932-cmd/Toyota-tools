@@ -306,6 +306,11 @@ body{background:var(--porcelain)!important;color:var(--ink)!important}
   body{background:var(--porcelain)!important;color:var(--ink)!important}
   .card,.rolebtn,.stat,.statline,.key,.tab{background:#fff!important;color:var(--ink)!important}
 }
+
+/* FIX: the selected tab was white text on a white box, so its label was invisible.
+   The dark pill is restored everywhere - dashboard tabs, damaged chips, all-tools chips. */
+.tab.on{background:var(--obsidian)!important;color:#fff!important;border-color:var(--obsidian)!important}
+.tab.on .c{color:#fff!important;opacity:.8}
 </style>
 </head>
 <body>
@@ -974,9 +979,7 @@ function dash(){
     ${c.reqs?`<div class="alert warn" onclick="stab('requests')" style="cursor:pointer"><b>TAKE — ${c.reqs} tool${c.reqs>1?'s':''}</b> waiting for you to hand over ›</div>`:''}
     ${c.pending?`<div class="alert warn" onclick="stab('pending')" style="cursor:pointer"><b>RETURN — ${c.pending} tool${c.pending>1?'s':''}</b> waiting for you to receive ›</div>`:''}
     <div class="tabs" id="tabs"></div><div class="card" id="list" style="padding:6px 14px"></div>
-    <button class="btn primary" onclick="stab('all')" style="margin-top:6px">&#128736; ALL TOOLS — live situation</button>
-    <button class="btn ghost" onclick="stab('damaged')" style="margin-top:10px">&#9888; Damaged tools${c.damaged?' ('+c.damaged+')':''}</button>
-    <button class="btn ghost" onclick="npStart()" style="margin-top:10px">&#128241; Technician without phone — issue manually</button>
+    <button class="btn ghost" onclick="npStart()" style="margin-top:6px">&#128241; Technician without phone — issue manually</button>
     <button class="btn primary" onclick="reportPick()" style="margin-top:10px">Monthly report</button>
     <button class="btn ghost" onclick="switchKeeper()" style="margin-top:10px">&#128100; Change store keeper (shift handover)</button>
     <button class="btn ghost" onclick="home()" style="margin-top:10px">Log out</button>
