@@ -336,6 +336,21 @@ body{background:var(--porcelain)!important;color:var(--ink)!important}
   font-size:14px;line-height:1.5;color:var(--ink);font-weight:600}
 .condrep .kv{padding:7px 13px;border:0}
 .condrep .cr-foot{padding:9px 13px 12px;font-size:11.5px;color:#8a7b7b;font-weight:600}
+
+/* ---- set pieces ---- */
+.pcbar{margin-top:8px;font-size:13.5px;color:var(--ink2)}
+.pkmodes{display:flex;flex-direction:column;gap:9px;margin-top:12px}
+.pkmodes .btn{width:100%}
+.pcnums{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+.pcnum{min-width:44px;height:44px;border:1px solid var(--line);border-radius:10px;background:#fff;
+  font-weight:800;font-size:15px;color:var(--ink)}
+.pcnum.on{background:var(--obsidian);color:#fff;border-color:var(--obsidian)}
+.pcf{display:flex;align-items:center;gap:9px;margin-top:8px}
+.pcl{flex:none;width:26px;height:26px;border-radius:50%;background:var(--obsidian);color:#fff;
+  font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.pcf input{flex:1}
+.pcin.bad{border-color:#e0b4b4;background:#fffafa}
+button.btn[disabled]{opacity:.42;pointer-events:none}
 </style>
 </head>
 <body>
@@ -436,7 +451,7 @@ function _localClear(){_lset([]);}
 window.addEventListener('storage',()=>{_lcbs.forEach(cb=>cb(_lget()));});
 </script>
 <script>
-const TOOLS=[["1101", "", "MULTIMETER 1, MANUAL RANGING", 1, "Single", "Location 1", "", "", "TL-001"], ["1102", "", "MULTIMETER 2, AUTO RANGING", 1, "Single", "Location 1", "", "", "TL-002"], ["1103", "", "CLAMP METER 3 - FLUKE", 1, "Single", "Location 1", "", "", "TL-003"], ["1104", "", "LEAK DETECTOR", 1, "Single", "Location 1", "", "", "TL-004"], ["1105", "", "LIGHT METER 1 (LX-100)", 1, "Single", "Location 1", "", "", "TL-005"], ["1106", "", "LIGHT METER 2 FOR AIRFLOW, HUMIDITY, LIGHT(LM-8010)", 1, "Single", "Location 1", "", "", "TL-006"], ["1107", "", "SOUND LEVEL METER - RION", 1, "Single", "Location 1", "", "", "TL-007"], ["1108", "", "ENGINE TACHOMETER", 1, "Single", "Location 1", "", "", "TL-008"], ["1109", "", "ANGLE METER, BEVEL BOX", 1, "Single", "Location 1", "", "", "TL-009"], ["1110", "", "REFRACTOMETER", 2, "Single", "Location 1", "", "", "TL-010"], ["1111", "", "HYDROMETER, FOR SPECIFIC GRAVITY - KS TOOLS", 1, "Single", "Location 1", "", "", "TL-011"], ["1112", "", "THERMOMETER - LASER / INFRARED", 1, "Single", "Location 1", "", "", "TL-012"], ["1113", "", "THERMOMETER - PROBE", 1, "Single", "Location 1", "", "", "TL-013"], ["1114", "", "THERMOMETER (REGULAR)", 1, "Single", "Location 1", "", "", "TL-014"], ["1115", "", "SCREW GAUGE - SMALL", 2, "Single", "Location 1", "", "", "TL-015"], ["1116", "", "SCREW GAUGE - BIG", 1, "Single", "Location 1", "", "", "TL-016"], ["1117", "", "VERNIER CALLIPER - DIGITAL", 1, "Single", "Location 1", "", "", "TL-017"], ["1118", "", "VERNIER CALLIPER - MANUAL", 1, "Single", "Location 1", "", "", "TL-018"], ["1119", "", "MEASURING TAPE - SMALL", 1, "Single", "Location 1", "", "", "TL-019"], ["1120", "", "MEASURING TAPE - BIG", 1, "Single", "Location 1", "", "", "TL-020"], ["1121", "", "MAGNIFYING LENSE", 1, "Single", "Location 1", "", "", "TL-021"], ["1201", "", "TORQUE WRENCH 1 DIGITAL (40 - 200 Nm)", 1, "Single", "Location 1", "", "", "TL-022"], ["1202", "", "TORQUE WRENCH 2 (16.9 - 138.9 Nm)", 1, "Single", "Location 1", "", "", "TL-023"], ["1203", "", "TORQUE WRENCH 3 (4 - 20 Nm)", 1, "Single", "Location 1", "", "", "TL-024"], ["1204", "", "TORQUE WRENCH 4 (70 - 250 Nm)", 1, "Single", "Location 1", "", "", "TL-025"], ["1205", "", "TORQUE WRENCH 5 (10 - 70 Nm)", 1, "Single", "Location 1", "", "", "TL-026"], ["1206", "", "TORQUE WRENCH 6 (10 - 60 Nm)", 1, "Single", "Location 1", "", "", "TL-027"], ["1207", "", "TORQUE WRENCH 7 (JJ00367)", 1, "Single", "Location 1", "", "", "TL-028"], ["1208", "", "TORQUE WRENCH 8 (QL200 N)", 1, "Single", "Location 1", "", "", "TL-029"], ["1301", "", "STUD REMOVER SET", 1, "Single", "Location 1", "", "", "TL-030"], ["1302", "", "TORX BIT (FLOWER SET)", 1, "Single", "Location 1", "", "", "TL-031"], ["1303", "", "ALLENKEY SET", 1, "Single", "Location 1", "", "", "TL-032"], ["1304", "", "TORX ALLENKY SET (FLOWER)", 1, "Single", "Location 1", "", "", "TL-033"], ["1305", "", "ALLEN KEY 4 MM", 1, "Single", "Location 1", "", "", "TL-034"], ["1306", "", "ALLEN KEY 7 MM", 1, "Single", "Location 1", "", "", "TL-035"], ["1307", "", "ALLEN KEY 10 MM", 1, "Single", "Location 1", "", "", "TL-036"], ["1308", "", "ALLEN KEY 12 MM", 1, "Single", "Location 1", "", "", "TL-037"], ["1309", "", "ALLEN KEY 14 MM", 1, "Single", "Location 1", "", "", "TL-038"], ["1310", "", "SOCKET T-30", 1, "Single", "Location 1", "", "", "TL-039"], ["1311", "", "SOCKET T-40", 1, "Single", "Location 1", "", "", "TL-040"], ["1312", "", "SOCKET FLOWER M-10", 1, "Single", "Location 1", "", "", "TL-041"], ["1313", "", "SOCKET FLOWER M-12", 1, "Single", "Location 1", "", "", "TL-042"], ["1314", "", "SOCKET HEXA 8 MM (TOY)", 1, "Single", "Location 1", "", "", "TL-043"], ["1315", "", "SOCKET HEXA 10 MM (TOY)", 1, "Single", "Location 1", "", "", "TL-044"], ["1316", "", "SOCKET HEXA 6 MM", 1, "Single", "Location 1", "", "", "TL-045"], ["1317", "", "SOCKET HEXA 12 MM", 1, "Single", "Location 1", "", "", "TL-046"], ["1318", "", "CLUTCH PULLEY OPENER", 1, "Set", "Location 1", "4 PC SET", "", "TL-047"], ["1319", "", "EXTENSION 3/4\" FOR BIG IMPACT WRENCH", 1, "Single", "Location 1", "", "", "TL-048"], ["1320", "", "ADAPTER 1/2\" - 3/4\"", 1, "Single", "Location 1", "", "", "TL-049"], ["1321", "", "ADAPTER 3/4\" - 1/2\"", 1, "Single", "Location 1", "", "", "TL-050"], ["1401", "", "BATTERY TESTER", 1, "Single", "Location 1", "", "", "TL-051"], ["1402", "", "BRAKE FLUID METER", 1, "Single", "Location 1", "", "", "TL-052"], ["1403", "", "BRAKE GAUGE", 1, "Single", "Location 1", "", "", "TL-053"], ["1404", "", "TOYOTA ELECTRICAL TESTER", 1, "Single", "Location 1", "", "", "TL-054"], ["1405", "", "ALTERNATOR CHECKER", 1, "Single", "Location 1", "", "", "TL-055"], ["1406", "", "SPIRIT LEVEL BOTTLE", 1, "Single", "Location 1", "", "", "TL-056"], ["1407", "", "STRAIGHT EDGE TOOL", 1, "Single", "Location 1", "", "", "TL-057"], ["1408", "", "AC COMPRESSOR OIL INJECTOR - ROBINAIR", 1, "Single", "Location 1", "", "", "TL-058"], ["1409", "", "AC LEAK STOP SEALANT", 1, "Single", "Location 1", "", "", "TL-059"], ["1410", "", "POWER WINDOW MASTER SWITCH GREASE", 1, "Set", "Location 1", "TUBE & SYRINGE", "", "TL-060"], ["1411", "", "AIR PRESSURE GAUGE", 1, "Single", "Location 1", "", "", "TL-061"], ["1412", "", "BEAM TORQUE WRENCH (0 - 60 CM)", 1, "Single", "Location 1", "", "", "TL-062"], ["1413", "", "DIAL GAUGE (MAGNETIC STAND)", 1, "Single", "Location 1", "", "", "TL-063"], ["1414", "", "COMBUSSION LEAK TESTER", 1, "Set", "Location 1", "4 PC SET", "", "TL-064"], ["1501", "", "SUPER GLUE SPRAY", 1, "Single", "Location 1", "", "", "TL-065"], ["1502", "", "BISON / PATTEX", 1, "Single", "Location 1", "", "", "TL-066"], ["1503", "", "THREAD LOCKER", 1, "Single", "Location 1", "", "", "TL-067"], ["1504", "", "MEASURING JAR SMALL", 1, "Set", "Location 1", "4 PC SET", "", "TL-068"], ["1505", "", "EVAPORATOR FLUSHING KIT", 1, "Single", "Location 1", "", "", "TL-069"], ["2101", "", "VVTI PLIER", 1, "Single", "Location 2", "", "", "TL-070"], ["3101", "", "TRANSMISSION & TRANSFER BEARING REPLACER", 1, "Set", "Location 3 — Metal case", "", "", "TL-071"], ["3102", "", "INJECTION MEASURING TOOL", 1, "Set", "Location 3 — Metal case", "", "", "TL-072"], ["3103", "", "INJECTION MEASURING TOOL", 1, "Set", "Location 3 — Metal case", "", "", "TL-073"], ["3104", "", "MANUAL INJECTOR TESTER", 1, "Set", "Location 3 — Metal case", "", "", "TL-074"], ["3105", "", "TOOL SET AUTOMATIC TRANSMISSION", 1, "Set", "Location 3 — Metal case", "", "", "TL-075"], ["3106", "", "TOOL SET AUTOMATIC TRANSMISSION", 2, "Set", "Location 3 — Metal case", "", "", "TL-076"], ["3107", "", "TRANSMISSION GEAR REMOVER & REPLACER", 1, "Set", "Location 3 — Metal case", "", "", "TL-077"], ["3108", "", "REMOVER & REPLACER TRANSMISSION GEAR", 1, "Set", "Location 3 — Metal case", "", "", "TL-078"], ["3109", "", "EFI FUEL PRESSURE GAUGE", 1, "Set", "Location 3 — Metal case", "", "", "TL-079"], ["3110", "", "EFI FUEL PRESSURE GAUGE", 1, "Set", "Location 3 — Metal case", "", "", "TL-080"], ["3111", "", "EFI FUEL PRESSURE GAUGE", 2, "Set", "Location 3 — Metal case", "", "", "TL-081"], ["3112", "", "GAUGE SET (BT-41  RED BOX)", 1, "Set", "Location 3 — Metal case", "", "", "TL-082"], ["3113", "", "BEARING REPLACER SET", 1, "Set", "Location 3 — Metal case", "", "", "TL-083"], ["3114", "", "TOOL SET WATER PUMP OVERHAUL", 1, "Set", "Location 3 — Metal case", "", "", "TL-084"], ["3115", "", "PULLER UNIVERSAL", 1, "Set", "Location 3 — Metal case", "", "", "TL-085"], ["3116", "", "PULLER A SET", 2, "Set", "Location 3 — Metal case", "", "", "TL-086"], ["3117", "", "PULLER C SET", 1, "Set", "Location 3 — Metal case", "", "", "TL-087"], ["3118", "", "PULLER B SET", 1, "Set", "Location 3 — Metal case", "", "", "TL-088"], ["3119", "", "PULLER B SET", 1, "Set", "Location 3 — Metal case", "", "", "TL-089"], ["3120", "", "TOOL SET STEERING GEAR HOUSING OVERHAUL", 1, "Set", "Location 3 — Metal case", "", "", "TL-090"], ["3121", "", "POWER STEERING GEAR HOUSING OVERHAUL", 1, "Set", "Location 3 — Metal case", "", "", "TL-091"], ["3122", "", "PULLER STEERING WORM BEARING", 1, "Set", "Location 3 — Metal case", "", "", "TL-092"], ["3123", "", "TOOL SET STEERING RACK OIL SEAL", 1, "Set", "Location 3 — Metal case", "", "", "TL-093"], ["3124", "", "POWER STEERING PRESSURE GAUGE SET", 1, "Set", "Location 3 — Metal case", "", "", "TL-094"], ["3125", "", "STEERING GEAR HOUSING OVERHAUL", 1, "Set", "Location 3 — Metal case", "", "", "TL-095"], ["3126", "", "TOOL SET STEERING GEAR HOUSING OVERHAUL", 1, "Set", "Location 3 — Metal case", "", "", "TL-096"], ["3127", "", "REPLACER SET NO. 2", 1, "Set", "Location 3 — Metal case", "", "", "TL-097"], ["3128", "", "REPLACER SET NO. 2", 1, "Set", "Location 3 — Metal case", "", "", "TL-098"], ["3129", "", "REPLACER SET", 2, "Set", "Location 3 — Metal case", "", "", "TL-099"], ["3130", "", "REPLACER SET B", 1, "Set", "Location 3 — Metal case", "", "", "TL-100"], ["3131", "", "TOOL SET AUTOMATIC TRANSMISSION", 1, "Set", "Location 3 — Metal case", "", "", "TL-101"], ["3132", "", "TOOL SET AUTOMATIC TRANSMISSION", 1, "Set", "Location 3 — Metal case", "", "", "TL-102"], ["3133", "", "COMPRESSION GAUGE", 3, "Set", "Location 3 — Metal case", "", "", "TL-103"], ["3134", "", "TURBOCHARGER PRESSURE GAUGE", 1, "Set", "Location 3 — Metal case", "", "", "TL-104"], ["3135", "", "LSPV GAUGE", 1, "Set", "Location 3 — Metal case", "", "", "TL-105"], ["3136", "", "TOOL SET FRONT SUSPENSION BUSH", 1, "Set", "Location 3 — Metal case", "", "", "TL-106"], ["3137", "", "AUTOMATIC TRANSMISSION OIL PRESSURE GAUGE SET", 3, "Set", "Location 3 — Metal case", "", "", "TL-107"], ["3138", "", "BIG SOCKETS SET (TOPTOOL)", 1, "Set", "Location 3 — Metal case", "", "", "TL-108"], ["3139", "", "HEAVY IMPACT WRENCH", 1, "Set", "Location 3 — Metal case", "", "", "TL-109"], ["3201", "", "CAMSHAFT BEARING REMOVER & REPLACER SET A", 2, "Set", "Location 3 — Leather case", "", "", "TL-110"], ["3202", "", "FRONT LOWER ARM BUSH REMOVER & REPLACER", 2, "Set", "Location 3 — Leather case", "", "", "TL-111"], ["3203", "", "HANDLE SET", 1, "Set", "Location 3 — Leather case", "", "", "TL-112"], ["3204", "", "SUSPENSION BUSH TOOL SET", 1, "Set", "Location 3 — Leather case", "", "", "TL-113"], ["3205", "", "FRONT SUSPENSION BUSH TOOL SET", 1, "Set", "Location 3 — Leather case", "", "", "TL-114"], ["3206", "", "MAIN SHAFT RETAINING RING REMOVER & REPLACER", 1, "Set", "Location 3 — Leather case", "", "", "TL-115"], ["3207", "", "FRONT LOWER ARM BUSH REMOVER & REPLACER", 1, "Set", "Location 3 — Leather case", "", "", "TL-116"], ["3208", "", "ROCKER ARM SUPPORT TOOL SET", 1, "Set", "Location 3 — Leather case", "", "", "TL-117"], ["3209", "", "KING PIN BUSH REMOVER & REPLACER", 1, "Set", "Location 3 — Leather case", "", "", "TL-118"], ["3210", "", "KING PIN BUSH REMOVER & REPLACER", 1, "Set", "Location 3 — Leather case", "", "", "TL-119"], ["3211", "", "FRONT HUB BEARING ADJUSTING TOOL", 2, "Set", "Location 3 — Leather case", "", "", "TL-120"], ["3212", "", "REAR SUSPENSION BUSH TOOL SET", 1, "Set", "Location 3 — Leather case", "", "", "TL-121"], ["3213", "", "LOWER SUSPENSION ARM BUSH REMOVER & REPLACER", 1, "Set", "Location 3 — Leather case", "", "", "TL-122"], ["4101", "", "WEIGHT SCALE", 1, "Set", "Location 4 — Plastic case", "", "", "TL-123"], ["4102", "", "PICO SCOPE", 1, "Set", "Location 4 — Plastic case", "", "", "TL-124"], ["4103", "", "CYLINDER HEAD VALVE REPLACER (1)", 1, "Set", "Location 4 — Plastic case", "", "", "TL-125"], ["4104", "", "CYLINDER HEAD VALVE REPLACER (2)", 1, "Set", "Location 4 — Plastic case", "", "", "TL-126"], ["4105", "", "HEAVY IMPACT WRENCH SOCKETS SET", 1, "Set", "Location 4 — Plastic case", "", "", "TL-127"], ["4106", "", "FUEL PRESSURE GAUGE", 1, "Set", "Location 4 — Plastic case", "", "", "TL-128"], ["4107", "", "U.V.", 1, "Set", "Location 4 — Plastic case", "", "", "TL-129"], ["4108", "", "FILTER OPENERS", 1, "Set", "Location 4 — Metal case", "", "", "TL-130"], ["4109", "", "REFRIGERANT ANALYZER (1)", 1, "Set", "Location 4 — Plastic case", "", "", "TL-131"], ["4110", "", "REFRIGERANT ANALYZER (2)", 1, "Set", "Location 4 — Plastic case", "", "", "TL-132"], ["4111", "", "ENDOSCOPE (1)", 1, "Set", "Location 4 — Plastic case", "", "", "TL-133"], ["4112", "", "ENDOSCOPE (2)", 1, "Set", "Location 4 — Plastic case", "", "", "TL-134"], ["4113", "", "ENGINE COMPRESSION GAUGE", 1, "Set", "Location 4 — Plastic case", "", "", "TL-135"], ["4114", "", "BLUE POINT TEST KIT", 1, "Set", "Location 4 — Plastic case", "", "", "TL-136"], ["4115", "", "CHASSIS-EAR", 1, "Set", "Location 4 — Plastic case", "", "", "TL-137"], ["4116", "", "TOYOTA SUPRA - SAFETY WHEEL NUT MASTER KEY SET", 1, "Set", "Location 4 — Plastic case", "", "", "TL-138"], ["4117", "", "RADIATOR (COOLANT) LEAK TESTER", 1, "Set", "Location 4 — Plastic case", "", "", "TL-139"], ["5101", "", "BATTERY BOOSTER 2500", 1, "Single", "Location 5", "", "", "TL-140"], ["5102", "", "BATTERY BOOSTER 5000", 1, "Single", "Location 5", "", "", "TL-141"], ["5103", "", "AIR TANK (WHITE)", 1, "Single", "Location 5", "", "", "TL-142"], ["5104", "", "HYDRAULIC PRESSURE TEST PUMP (BLUE)", 1, "Single", "Location 5", "", "", "TL-143"], ["5105", "", "CARBON X VACUUM EXTRACTOR PUMP", 1, "Single", "Location 5", "", "", "TL-144"], ["5106", "", "MEASURING JAR (BIG)", 1, "Single", "Location 5", "", "", "TL-145"], ["5201", "", "DOUBLE SIDE TAPE, RED", 1, "Single", "Location 5", "", "", "TL-146"], ["5202", "", "FOAM TAPE, GREY", 1, "Single", "Location 5", "", "", "TL-147"], ["5203", "", "GORILLA TAPE, BLACK", 1, "Single", "Location 5", "", "", "TL-148"], ["5204", "", "SCISSOR", 1, "Single", "Location 5", "", "", "TL-149"], ["5301", "", "SOLDER IRON", 1, "Single", "Location 5", "", "", "TL-150"], ["5302", "", "TAP & DIE SET (THREADING)", 1, "Single", "Location 5", "", "", "TL-151"], ["5303", "", "OIL PAN DRAIN NUT THREADING", 1, "Single", "Location 5", "", "", "TL-152"]];
+const TOOLS=[["1101", "", "MULTIMETER 1, MANUAL RANGING", 1, "Single", "Location 1", "", "", "TL-001"], ["1102", "", "MULTIMETER 2, AUTO RANGING", 1, "Single", "Location 1", "", "", "TL-002"], ["1103", "", "CLAMP METER 3 - FLUKE", 1, "Single", "Location 1", "", "", "TL-003"], ["1104", "", "LEAK DETECTOR", 1, "Single", "Location 1", "", "", "TL-004"], ["1105", "", "LIGHT METER 1 (LX-100)", 1, "Single", "Location 1", "", "", "TL-005"], ["1106", "", "LIGHT METER 2 FOR AIRFLOW, HUMIDITY, LIGHT(LM-8010)", 1, "Single", "Location 1", "", "", "TL-006"], ["1107", "", "SOUND LEVEL METER - RION", 1, "Single", "Location 1", "", "", "TL-007"], ["1108", "", "ENGINE TACHOMETER", 1, "Single", "Location 1", "", "", "TL-008"], ["1109", "", "ANGLE METER, BEVEL BOX", 1, "Single", "Location 1", "", "", "TL-009"], ["1110", "", "REFRACTOMETER", 2, "Single", "Location 1", "", "", "TL-010"], ["1111", "", "HYDROMETER, FOR SPECIFIC GRAVITY - KS TOOLS", 1, "Single", "Location 1", "", "", "TL-011"], ["1112", "", "THERMOMETER - LASER / INFRARED", 1, "Single", "Location 1", "", "", "TL-012"], ["1113", "", "THERMOMETER - PROBE", 1, "Single", "Location 1", "", "", "TL-013"], ["1114", "", "THERMOMETER (REGULAR)", 1, "Single", "Location 1", "", "", "TL-014"], ["1115", "", "SCREW GAUGE - SMALL", 2, "Single", "Location 1", "", "", "TL-015"], ["1116", "", "SCREW GAUGE - BIG", 1, "Single", "Location 1", "", "", "TL-016"], ["1117", "", "VERNIER CALLIPER - DIGITAL", 1, "Single", "Location 1", "", "", "TL-017"], ["1118", "", "VERNIER CALLIPER - MANUAL", 1, "Single", "Location 1", "", "", "TL-018"], ["1119", "", "MEASURING TAPE - SMALL", 1, "Single", "Location 1", "", "", "TL-019"], ["1120", "", "MEASURING TAPE - BIG", 1, "Single", "Location 1", "", "", "TL-020"], ["1121", "", "MAGNIFYING LENSE", 1, "Single", "Location 1", "", "", "TL-021"], ["1201", "", "TORQUE WRENCH 1 DIGITAL (40 - 200 Nm)", 1, "Single", "Location 1", "", "", "TL-022"], ["1202", "", "TORQUE WRENCH 2 (16.9 - 138.9 Nm)", 1, "Single", "Location 1", "", "", "TL-023"], ["1203", "", "TORQUE WRENCH 3 (4 - 20 Nm)", 1, "Single", "Location 1", "", "", "TL-024"], ["1204", "", "TORQUE WRENCH 4 (70 - 250 Nm)", 1, "Single", "Location 1", "", "", "TL-025"], ["1205", "", "TORQUE WRENCH 5 (10 - 70 Nm)", 1, "Single", "Location 1", "", "", "TL-026"], ["1206", "", "TORQUE WRENCH 6 (10 - 60 Nm)", 1, "Single", "Location 1", "", "", "TL-027"], ["1207", "", "TORQUE WRENCH 7 (JJ00367)", 1, "Single", "Location 1", "", "", "TL-028"], ["1208", "", "TORQUE WRENCH 8 (QL200 N)", 1, "Single", "Location 1", "", "", "TL-029"], ["1301", "", "STUD REMOVER SET", 1, "Single", "Location 1", "", "", "TL-030"], ["1302", "", "TORX BIT (FLOWER SET)", 1, "Single", "Location 1", "", "", "TL-031"], ["1303", "", "ALLENKEY SET", 1, "Single", "Location 1", "", "", "TL-032"], ["1304", "", "TORX ALLENKY SET (FLOWER)", 1, "Single", "Location 1", "", "", "TL-033"], ["1305", "", "ALLEN KEY 4 MM", 1, "Single", "Location 1", "", "", "TL-034"], ["1306", "", "ALLEN KEY 7 MM", 1, "Single", "Location 1", "", "", "TL-035"], ["1307", "", "ALLEN KEY 10 MM", 1, "Single", "Location 1", "", "", "TL-036"], ["1308", "", "ALLEN KEY 12 MM", 1, "Single", "Location 1", "", "", "TL-037"], ["1309", "", "ALLEN KEY 14 MM", 1, "Single", "Location 1", "", "", "TL-038"], ["1310", "", "SOCKET T-30", 1, "Single", "Location 1", "", "", "TL-039"], ["1311", "", "SOCKET T-40", 1, "Single", "Location 1", "", "", "TL-040"], ["1312", "", "SOCKET FLOWER M-10", 1, "Single", "Location 1", "", "", "TL-041"], ["1313", "", "SOCKET FLOWER M-12", 1, "Single", "Location 1", "", "", "TL-042"], ["1314", "", "SOCKET HEXA 8 MM (TOY)", 1, "Single", "Location 1", "", "", "TL-043"], ["1315", "", "SOCKET HEXA 10 MM (TOY)", 1, "Single", "Location 1", "", "", "TL-044"], ["1316", "", "SOCKET HEXA 6 MM", 1, "Single", "Location 1", "", "", "TL-045"], ["1317", "", "SOCKET HEXA 12 MM", 1, "Single", "Location 1", "", "", "TL-046"], ["1318", "", "CLUTCH PULLEY OPENER", 1, "Set", "Location 1", "4 PC SET", "", "TL-047"], ["1319", "", "EXTENSION 3/4\" FOR BIG IMPACT WRENCH", 1, "Single", "Location 1", "", "", "TL-048"], ["1320", "", "ADAPTER 1/2\" - 3/4\"", 1, "Single", "Location 1", "", "", "TL-049"], ["1321", "", "ADAPTER 3/4\" - 1/2\"", 1, "Single", "Location 1", "", "", "TL-050"], ["1401", "", "BATTERY TESTER", 1, "Single", "Location 1", "", "", "TL-051"], ["1402", "", "BRAKE FLUID METER", 1, "Single", "Location 1", "", "", "TL-052"], ["1403", "", "BRAKE GAUGE", 1, "Single", "Location 1", "", "", "TL-053"], ["1404", "", "TOYOTA ELECTRICAL TESTER", 1, "Single", "Location 1", "", "", "TL-054"], ["1405", "", "ALTERNATOR CHECKER", 1, "Single", "Location 1", "", "", "TL-055"], ["1406", "", "SPIRIT LEVEL BOTTLE", 1, "Single", "Location 1", "", "", "TL-056"], ["1407", "", "STRAIGHT EDGE TOOL", 1, "Single", "Location 1", "", "", "TL-057"], ["1408", "", "AC COMPRESSOR OIL INJECTOR - ROBINAIR", 1, "Single", "Location 1", "", "", "TL-058"], ["1409", "", "AC LEAK STOP SEALANT", 1, "Single", "Location 1", "", "", "TL-059"], ["1410", "", "POWER WINDOW MASTER SWITCH GREASE", 1, "Set", "Location 1", "TUBE & SYRINGE", "", "TL-060"], ["1411", "", "AIR PRESSURE GAUGE", 1, "Single", "Location 1", "", "", "TL-061"], ["1412", "", "BEAM TORQUE WRENCH (0 - 60 CM)", 1, "Single", "Location 1", "", "", "TL-062"], ["1413", "", "DIAL GAUGE (MAGNETIC STAND)", 1, "Single", "Location 1", "", "", "TL-063"], ["1414", "", "COMBUSSION LEAK TESTER", 1, "Set", "Location 1", "4 PC SET", "", "TL-064"], ["1501", "", "SUPER GLUE SPRAY", 1, "Single", "Location 1", "", "", "TL-065"], ["1502", "", "BISON / PATTEX", 1, "Single", "Location 1", "", "", "TL-066"], ["1503", "", "THREAD LOCKER", 1, "Single", "Location 1", "", "", "TL-067"], ["1504", "", "MEASURING JAR SMALL", 1, "Set", "Location 1", "4 PC SET", "", "TL-068"], ["1505", "", "EVAPORATOR FLUSHING KIT", 1, "Single", "Location 1", "", "", "TL-069"], ["2101", "", "VVTI PLIER", 1, "Single", "Location 2", "", "", "TL-070"], ["3101", "", "TRANSMISSION & TRANSFER BEARING REPLACER", 1, "Set", "Location 3 — Metal case", "", "", "TL-071"], ["3102", "", "INJECTION MEASURING TOOL", 1, "Set", "Location 3 — Metal case", "", "", "TL-072"], ["3103", "", "INJECTION MEASURING TOOL", 1, "Set", "Location 3 — Metal case", "", "", "TL-073"], ["3104", "", "MANUAL INJECTOR TESTER", 1, "Set", "Location 3 — Metal case", "", "", "TL-074"], ["3105", "", "TOOL SET AUTOMATIC TRANSMISSION", 1, "Set", "Location 3 — Metal case", "", "", "TL-075"], ["3106", "", "TOOL SET AUTOMATIC TRANSMISSION", 2, "Set", "Location 3 — Metal case", "", "", "TL-076"], ["3107", "", "TRANSMISSION GEAR REMOVER & REPLACER", 1, "Set", "Location 3 — Metal case", "", "", "TL-077"], ["3108", "", "REMOVER & REPLACER TRANSMISSION GEAR", 1, "Set", "Location 3 — Metal case", "", "", "TL-078"], ["3109", "", "EFI FUEL PRESSURE GAUGE", 1, "Set", "Location 3 — Metal case", "", "", "TL-079"], ["3110", "", "EFI FUEL PRESSURE GAUGE", 1, "Set", "Location 3 — Metal case", "", "", "TL-080"], ["3111", "", "EFI FUEL PRESSURE GAUGE", 2, "Set", "Location 3 — Metal case", "", "", "TL-081"], ["3112", "", "GAUGE SET (BT-41  RED BOX)", 1, "Set", "Location 3 — Metal case", "", "", "TL-082"], ["3113", "", "BEARING REPLACER SET", 1, "Set", "Location 3 — Metal case", "", "", "TL-083"], ["3114", "", "TOOL SET WATER PUMP OVERHAUL", 1, "Set", "Location 3 — Metal case", "", "", "TL-084"], ["3115", "", "PULLER UNIVERSAL", 1, "Set", "Location 3 — Metal case", "", "", "TL-085"], ["3116", "", "PULLER A SET", 2, "Set", "Location 3 — Metal case", "", "", "TL-086"], ["3117", "", "PULLER C SET", 1, "Set", "Location 3 — Metal case", "", "", "TL-087"], ["3118", "", "PULLER B SET", 1, "Set", "Location 3 — Metal case", "", "", "TL-088"], ["3119", "", "PULLER B SET", 1, "Set", "Location 3 — Metal case", "", "", "TL-089"], ["3120", "", "TOOL SET STEERING GEAR HOUSING OVERHAUL", 1, "Set", "Location 3 — Metal case", "", "", "TL-090"], ["3121", "", "POWER STEERING GEAR HOUSING OVERHAUL", 1, "Set", "Location 3 — Metal case", "", "", "TL-091"], ["3122", "", "PULLER STEERING WORM BEARING", 1, "Set", "Location 3 — Metal case", "", "", "TL-092"], ["3123", "", "TOOL SET STEERING RACK OIL SEAL", 1, "Set", "Location 3 — Metal case", "", "", "TL-093"], ["3124", "", "POWER STEERING PRESSURE GAUGE SET", 1, "Set", "Location 3 — Metal case", "", "", "TL-094"], ["3125", "", "STEERING GEAR HOUSING OVERHAUL", 1, "Set", "Location 3 — Metal case", "", "", "TL-095"], ["3126", "", "TOOL SET STEERING GEAR HOUSING OVERHAUL", 1, "Set", "Location 3 — Metal case", "", "", "TL-096"], ["3127", "", "REPLACER SET NO. 2", 1, "Set", "Location 3 — Metal case", "", "", "TL-097"], ["3128", "", "REPLACER SET NO. 2", 1, "Set", "Location 3 — Metal case", "", "", "TL-098"], ["3129", "", "REPLACER SET", 2, "Set", "Location 3 — Metal case", "", "", "TL-099"], ["3130", "", "REPLACER SET B", 1, "Set", "Location 3 — Metal case", "", "", "TL-100"], ["3131", "", "TOOL SET AUTOMATIC TRANSMISSION", 1, "Set", "Location 3 — Metal case", "", "", "TL-101"], ["3132", "", "TOOL SET AUTOMATIC TRANSMISSION", 1, "Set", "Location 3 — Metal case", "", "", "TL-102"], ["3133", "", "COMPRESSION GAUGE", 3, "Set", "Location 3 — Metal case", "", "", "TL-103"], ["3134", "", "TURBOCHARGER PRESSURE GAUGE", 1, "Set", "Location 3 — Metal case", "", "", "TL-104"], ["3135", "", "LSPV GAUGE", 1, "Set", "Location 3 — Metal case", "", "", "TL-105"], ["3136", "", "TOOL SET FRONT SUSPENSION BUSH", 1, "Set", "Location 3 — Metal case", "", "", "TL-106"], ["3137", "", "AUTOMATIC TRANSMISSION OIL PRESSURE GAUGE SET", 3, "Set", "Location 3 — Metal case", "", "", "TL-107"], ["3138", "", "BIG SOCKETS SET (TOPTOOL)", 1, "Set", "Location 3 — Metal case", "", "", "TL-108"], ["3139", "", "HEAVY IMPACT WRENCH", 1, "Set", "Location 3 — Metal case", "", "", "TL-109"], ["3201", "", "CAMSHAFT BEARING REMOVER & REPLACER SET A", 2, "Set", "Location 3 — Leather case", "", "", "TL-110"], ["3202", "", "FRONT LOWER ARM BUSH REMOVER & REPLACER", 2, "Set", "Location 3 — Leather case", "", "", "TL-111"], ["3203", "", "HANDLE SET", 1, "Set", "Location 3 — Leather case", "", "", "TL-112"], ["3204", "", "SUSPENSION BUSH TOOL SET", 1, "Set", "Location 3 — Leather case", "", "", "TL-113"], ["3205", "", "FRONT SUSPENSION BUSH TOOL SET", 1, "Set", "Location 3 — Leather case", "", "", "TL-114"], ["3206", "", "MAIN SHAFT RETAINING RING REMOVER & REPLACER", 1, "Set", "Location 3 — Leather case", "", "", "TL-115"], ["3207", "", "FRONT LOWER ARM BUSH REMOVER & REPLACER", 1, "Set", "Location 3 — Leather case", "", "", "TL-116"], ["3208", "", "ROCKER ARM SUPPORT TOOL SET", 1, "Set", "Location 3 — Leather case", "", "", "TL-117"], ["3209", "", "KING PIN BUSH REMOVER & REPLACER", 1, "Set", "Location 3 — Leather case", "", "", "TL-118"], ["3210", "", "KING PIN BUSH REMOVER & REPLACER", 1, "Set", "Location 3 — Leather case", "", "", "TL-119"], ["3211", "", "FRONT HUB BEARING ADJUSTING TOOL", 2, "Set", "Location 3 — Leather case", "", "", "TL-120"], ["3212", "", "REAR SUSPENSION BUSH TOOL SET", 1, "Set", "Location 3 — Leather case", "", "", "TL-121"], ["3213", "", "LOWER SUSPENSION ARM BUSH REMOVER & REPLACER", 1, "Set", "Location 3 — Leather case", "", "", "TL-122"], ["4101", "", "WEIGHT SCALE", 1, "Set", "Location 4 — Plastic case", "", "", "TL-123"], ["4102", "", "PICO SCOPE", 1, "Set", "Location 4 — Plastic case", "", "", "TL-124"], ["4103", "", "CYLINDER HEAD VALVE REPLACER (1)", 1, "Set", "Location 4 — Plastic case", "", "", "TL-125"], ["4104", "", "CYLINDER HEAD VALVE REPLACER (2)", 1, "Set", "Location 4 — Plastic case", "", "", "TL-126"], ["4105", "", "HEAVY IMPACT WRENCH SOCKETS SET", 1, "Set", "Location 4 — Plastic case", "", "", "TL-127"], ["4106", "", "FUEL PRESSURE GAUGE", 1, "Set", "Location 4 — Plastic case", "", "", "TL-128"], ["4107", "", "U.V.", 1, "Set", "Location 4 — Plastic case", "", "", "TL-129"], ["4108", "", "FILTER OPENERS", 1, "Set", "Location 4 — Metal case", "", "", "TL-130"], ["4109", "", "REFRIGERANT ANALYZER (1)", 1, "Set", "Location 4 — Plastic case", "", "", "TL-131"], ["4110", "", "REFRIGERANT ANALYZER (2)", 1, "Set", "Location 4 — Plastic case", "", "", "TL-132"], ["4111", "", "ENDOSCOPE (1)", 1, "Set", "Location 4 — Plastic case", "", "", "TL-133"], ["4112", "", "ENDOSCOPE (2)", 1, "Set", "Location 4 — Plastic case", "", "", "TL-134"], ["4113", "", "ENGINE COMPRESSION GAUGE", 1, "Set", "Location 4 — Plastic case", "", "", "TL-135"], ["4114", "", "BLUE POINT TEST KIT", 1, "Set", "Location 4 — Plastic case", "", "", "TL-136"], ["4115", "", "CHASSIS-EAR", 1, "Set", "Location 4 — Plastic case", "", "", "TL-137"], ["4116", "", "TOYOTA SUPRA - SAFETY WHEEL NUT MASTER KEY SET", 1, "Set", "Location 4 — Plastic case", "", "", "TL-138"], ["4117", "", "RADIATOR (COOLANT) LEAK TESTER", 1, "Set", "Location 4 — Plastic case", "", "", "TL-139"], ["5101", "", "BATTERY BOOSTER 2500", 1, "Single", "Location 5", "", "", "TL-140"], ["5102", "", "BATTERY BOOSTER 5000", 1, "Single", "Location 5", "", "", "TL-141"], ["5103", "", "AIR TANK (WHITE)", 1, "Single", "Location 5", "", "", "TL-142"], ["5104", "", "HYDRAULIC PRESSURE TEST PUMP (BLUE)", 1, "Single", "Location 5", "", "", "TL-143"], ["5105", "", "CARBON X VACUUM EXTRACTOR PUMP", 1, "Single", "Location 5", "", "", "TL-144"], ["5106", "", "MEASURING JAR (BIG)", 1, "Single", "Location 5", "", "", "TL-145"], ["5201", "", "DOUBLE SIDE TAPE, RED", 1, "Single", "Location 5", "", "", "TL-146"], ["5202", "", "FOAM TAPE, GREY", 1, "Single", "Location 5", "", "", "TL-147"], ["5203", "", "GORILLA TAPE, BLACK", 1, "Single", "Location 5", "", "", "TL-148"], ["5204", "", "SCISSOR", 1, "Single", "Location 5", "", "", "TL-149"], ["5301", "", "SOLDER IRON", 1, "Single", "Location 5", "", "", "TL-150"], ["5302", "", "TAP & DIE SET (THREADING)", 1, "Single", "Location 5", "", "", "TL-151"], ["5303", "", "OIL PAN DRAIN NUT THREADING", 1, "Single", "Location 5", "", "", "TL-152"], ["1322", "", "OIL PAN REMOVER", 1, "Single", "Location 1", "", "", "TL-153"], ["1323", "", "SMALL SCREW DRIVER SET", 1, "Set", "Location 1", "8 PC SET", "", "TL-154"], ["1324", "", "SMALL FILE SET", 1, "Set", "Location 1", "6 PC SET", "", "TL-155"], ["1325", "", "PUNCH SETS (ALPHABETS)", 1, "Set", "Location 1", "27 PC SET", "", "TL-156"], ["1326", "", "PUNCH SETS (NUMBERS)", 1, "Set", "Location 1", "9 PC SET", "", "TL-157"], ["2102", "", "Brake Booster Push Rod Gauge (09737-00010)", 2, "Single", "Location 2", "", "", "TL-158"], ["2103", "", "Brake Booster Push Rod Gauge (09737-00011)", 1, "Single", "Location 2", "", "", "TL-159"], ["2104", "", "Brake Spring Wrench (09703-03020)", 1, "Single", "Location 2", "", "", "TL-160"], ["2105", "", "Brake Spring Remover (09717-20010)", 2, "Single", "Location 2", "", "", "TL-161"], ["2106", "", "Brake Spring Remover (09703-30010)", 1, "Single", "Location 2", "", "", "TL-162"], ["2111", "", "Snap Ring Plier - Outer RED (09350-07070)", 2, "Single", "Location 2", "", "", "TL-163"], ["2112", "", "Snap Ring Plier - Outer RED (09905-00012)", 2, "Single", "Location 2", "", "", "TL-164"], ["2113", "", "Snap Ring Plier - Inner RED (09905-00013)", 1, "Single", "Location 2", "", "", "TL-165"], ["2114", "", "Snap Ring Plier - Outer RED", 1, "Single", "Location 2", "", "", "TL-166"], ["2115", "", "Snap Ring Plier - Inner GREEN", 1, "Single", "Location 2", "", "", "TL-167"], ["2116", "", "Snap Ring Plier - Outer GREEN", 1, "Single", "Location 2", "", "", "TL-168"], ["2117", "", "Piston Ring Plier (437/4)", 1, "Single", "Location 2", "", "", "TL-169"], ["2118", "", "Snap Ring Plier - Outer (09350-07060)", 2, "Single", "Location 2", "", "", "TL-170"], ["2121", "", "Brake Adjuster Tool (09704-30010)", 2, "Single", "Location 2", "", "", "TL-171"], ["2122", "", "Brake Line Union Wrench (09751-36011)", 1, "Single", "Location 2", "", "", "TL-172"], ["2123", "", "Brake shoe SST 1", 1, "Single", "Location 2", "", "", "TL-173"], ["2124", "", "Brake shoe SST 2", 1, "Single", "Location 2", "", "", "TL-174"], ["2125", "", "Brake shoe SST 3", 1, "Single", "Location 2", "", "", "TL-175"], ["2151", "", "Straight Edge Big", 1, "Single", "Location 2", "", "", "TL-176"], ["2152", "", "Adjustable Wrench 20\"", 1, "Single", "Location 2", "", "", "TL-177"], ["2153", "", "Adjustable Wrench 15\"", 1, "Single", "Location 2", "", "", "TL-178"], ["2155", "", "Weight skill manual", 1, "Single", "Location 2", "", "", "TL-179"], ["2156", "", "Head light adjusting torx  driver", 1, "Single", "Location 2", "", "", "TL-180"], ["2157", "", "Sound Scope", 1, "Single", "Location 2", "", "", "TL-181"], ["2158", "", "Rubber hammer (small)", 1, "Single", "Location 2", "", "", "TL-182"], ["2159", "", "Rubber hammer (medium)", 1, "Single", "Location 2", "", "", "TL-183"], ["2160", "", "Rubber hammer (big)", 1, "Single", "Location 2", "", "", "TL-184"], ["2161", "", "Big hammer", 1, "Single", "Location 2", "", "", "TL-185"], ["2162", "", "End nipper", 1, "Single", "Location 2", "", "", "TL-186"], ["2201", "", "Puller - Rear Wheel Bearing (09514-35011)", 1, "Single", "Location 2", "", "", "TL-187"], ["2202", "", "Puller - Pitman Arm (09610-55012)", 1, "Single", "Location 2", "", "", "TL-188"], ["2203", "", "Puller - Tie Rod End (09611-22012)", 1, "Single", "Location 2", "", "", "TL-189"], ["2204", "", "Puller - Input Shaft Front Bearing (09303-35011)", 1, "Single", "Location 2", "", "", "TL-190"], ["2205", "", "Puller  (09309-32050)", 1, "Single", "Location 2", "", "", "TL-191"], ["2206", "", "Puller - Pitman Arm (09610-20012)", 1, "Single", "Location 2", "", "", "TL-192"], ["2207", "", "Puller  (09610-55020)", 1, "Single", "Location 2", "", "", "TL-193"], ["2208", "", "Puller - Tie Rod End (09611-36020)", 1, "Single", "Location 2", "", "", "TL-194"], ["2209", "", "Puller - Tie Rod End (09611-12010)", 1, "Single", "Location 2", "", "", "TL-195"], ["2210", "", "Puller - Ball Joint  (09628-10011)", 1, "Single", "Location 2", "", "", "TL-196"], ["2211", "", "Puller - Ball Joint  (09628-62011)", 1, "Single", "Location 2", "", "", "TL-197"], ["2212", "", "Puller - Crankshaft (09213-31021)", 1, "Single", "Location 2", "", "", "TL-198"], ["2213", "", "Puller - Differential Bearing (09502-10012)", 1, "Single", "Location 2", "", "", "TL-199"], ["2214", "", "Puller - Alternator Rear Bearing (09820-00021)", 1, "Single", "Location 2", "", "", "TL-200"], ["2215", "", "Puller - Oil Seal (09308-10010)", 1, "Single", "Location 2", "", "", "TL-201"], ["2216", "", "Puller - Injection Pump Spline Shaft (09286-46011)", 1, "Single", "Location 2", "", "", "TL-202"], ["2217", "", "Puller - Small (20110101)", 1, "Single", "Location 2", "", "", "TL-203"], ["2218", "", "Tie Rod End Lifter", 1, "Single", "Location 2", "", "", "TL-204"], ["2221", "", "Crankshaft Pulley Holder (09330-00021)", 1, "Set", "Location 2", "6 pc set", "", "TL-205"], ["2251", "", "Rear Axle Shaft Bearing Remover (09527-17011)", 1, "Single", "Location 2", "", "", "TL-206"], ["2252", "", "Spring Compressor No. 1 (09351-04020)", 1, "Single", "Location 2", "", "", "TL-207"], ["2253", "", "Hole Snap Ring Replacer (09351-97201)", 1, "Single", "Location 2", "", "", "TL-208"], ["2254", "", "Transfer Clutch Spring Compressor (09320-89010)", 1, "Single", "Location 2", "", "", "TL-209"], ["2255", "", "Bearing Spacer", 1, "Single", "Location 2", "", "", "TL-210"], ["2256", "", "Lock Wrench (09509-55042)", 1, "Single", "Location 2", "", "", "TL-211"], ["2257", "", "Direct Clutch Wrench (09387-00020)", 1, "Single", "Location 2", "", "", "TL-212"], ["2258", "", "Plate Spring Compressor (09351-04040)", 1, "Single", "Location 2", "", "", "TL-213"], ["2259", "", "Oil Seal & Bearing Replacer (09223-15030)", 1, "Single", "Location 2", "", "", "TL-214"], ["2260", "", "Axle Hub Oil Seal Replacer (09495-65040)", 1, "Set", "Location 2", "2 pc set", "", "TL-215"], ["2261", "", "First & Reverse Brake Wrench (09387-00070)", 1, "Single", "Location 2", "", "", "TL-216"], ["2262", "", "Transmission Wrench (09387-05030)", 1, "Single", "Location 2", "", "", "TL-217"], ["2263", "", "Output Shaft Bearing Lock Nut Wrench (09326-20011)", 1, "Single", "Location 2", "", "", "TL-218"], ["2264", "", "Fuel Filter Wrench (09228-64030)", 1, "Single", "Location 2", "", "", "TL-219"], ["2265", "", "Rear Axle Bearing Lock Nut Wrench (09509-25011)", 1, "Single", "Location 2", "", "", "TL-220"], ["2266", "", "Rear Axle Bearing Lock Nut Wrench (09513-36020)", 1, "Single", "Location 2", "", "", "TL-221"], ["2267", "", "Fuel Injection Pump Tool (09241-11010)", 1, "Single", "Location 2", "", "", "TL-222"], ["2268", "", "Transfer Bearing Adjusting Nut Wrench (09318-12010)", 2, "Single", "Location 2", "", "", "TL-223"], ["2269", "", "Counter Drive Gear Nut Wrench (09387-00080)", 1, "Single", "Location 2", "", "", "TL-224"], ["2270", "", "Differential Mounting Cushion Remover & Replacer (09570-22011)", 1, "Single", "Location 2", "", "", "TL-225"], ["2281", "", "Extension bar (101 cm)", 1, "Single", "Location 2", "", "", "TL-226"], ["2301", "", "Injection Pump Camshaft Bearing Cone Replacer (09277-76010)", 1, "Single", "Location 2", "", "", "TL-227"], ["2302", "", "Knuckle Centering Tool (09634-60013)", 1, "Single", "Location 2", "", "", "TL-228"], ["2303", "", "Clutch / Pulley holder", 1, "Single", "Location 2", "", "", "TL-229"], ["2304", "", "Clutch / Pulley holder (09616-25010)", 1, "Single", "Location 2", "", "", "TL-230"], ["2305", "", "Clutch / Pulley holder (09616-22010)", 1, "Single", "Location 2", "", "", "TL-231"], ["2306", "", "Clutch / Pulley holder (09504-00011)", 1, "Single", "Location 2", "", "", "TL-232"], ["2311", "", "Bush Replacer (09312-55010)", 1, "Set", "Location 2", "2 pc set", "", "TL-233"], ["2312", "", "Bush Replacer", 1, "Single", "Location 2", "", "", "TL-234"], ["2313", "", "Gear lever lock holder (09305-55020)", 1, "Single", "Location 2", "", "", "TL-235"], ["2314", "", "Steering shaft spring holder (09728-14010)", 1, "Single", "Location 2", "", "", "TL-236"], ["2315", "", "Axle rethreading tool", 1, "Single", "Location 2", "", "", "TL-237"], ["2316", "", "Rear Axle Shaft Bearing Remover (09527-10011)", 2, "Single", "Location 2", "", "", "TL-238"], ["2317", "", "Rear Axle Shaft Bearing Remover (09527-30010)", 2, "Single", "Location 2", "", "", "TL-239"], ["2351", "", "Rear Hub & Drum Puller (09510-36010)", 1, "Single", "Location 2", "", "", "TL-240"], ["2352", "", "Rear Hub & Drum Puller (09510-55021)", 1, "Single", "Location 2", "", "", "TL-241"], ["2353", "", "Differential Side Gear Shaft Puller (09520-24010)", 1, "Single", "Location 2", "", "", "TL-242"], ["2355", "", "Drive Shaft Remover & Replacer (09520-10021)", 1, "Single", "Location 2", "", "", "TL-243"], ["2357", "", "Bearing Remover big", 1, "Single", "Location 2", "", "", "TL-244"], ["2401", "", "B-Ring clip, Big", 1, "Single", "Location 2", "", "", "TL-245"], ["2402", "", "B-Ring clip, small", 1, "Single", "Location 2", "", "", "TL-246"], ["2411", "", "Steering Hose Nut Wrench Set", 1, "Set", "Location 2", "5 pc set", "", "TL-247"], ["2412", "", "Seat Lumbar SST", 1, "Set", "Location 2", "4 pc set", "", "TL-248"], ["2421", "", "Differential Drive Pinion Rear Bearing Replacer (09506-35010)", 3, "Single", "Location 2", "", "", "TL-249"], ["2422", "", "Differential Drive Pinion Rear Bearing Replacer (09506-30012)", 3, "Single", "Location 2", "", "", "TL-250"], ["2423", "", "Transmission Oil Plug (09325-20010)", 1, "Single", "Location 2", "", "", "TL-251"], ["2424", "", "Transmission Oil Plug (09325-12010)", 1, "Single", "Location 2", "", "", "TL-252"], ["2425", "", "Transmission Oil Plug (09325-40010)", 2, "Single", "Location 2", "", "", "TL-253"], ["2426", "", "Front Axle & Drive Shaft Bearing Replacer (09618-60010)", 1, "Single", "Location 2", "", "", "TL-254"], ["2427", "", "Replacer B (09308-14030)", 1, "Single", "Location 2", "", "", "TL-255"], ["2428", "", "Differential Side Bearing Replacer (09505-20010)", 1, "Single", "Location 2", "", "", "TL-256"], ["2431", "", "Steering Housing Alignment Tool (09504-22010)", 1, "Single", "Location 2", "", "", "TL-257"], ["2432", "", "Grip Plier", 1, "Single", "Location 2", "", "", "TL-258"], ["2433", "", "Rack & Pinion Steering Rack Housing Stand (09612-00012)", 1, "Single", "Location 2", "", "", "TL-259"], ["2434", "", "Input Shaft Front Bearing Replacer (09304-12012)", 1, "Single", "Location 2", "", "", "TL-260"], ["2435", "", "Crankshaft Pulley & Gear Replacer (09214-60010)", 1, "Single", "Location 2", "", "", "TL-261"], ["2436", "", "Transmission Bearing Replacer (09309-36100)", 1, "Single", "Location 2", "", "", "TL-262"], ["2437", "", "Knuckle Pin Bushing Replacer (09601-67010)", 1, "Single", "Location 2", "", "", "TL-263"], ["2438", "", "Replacer Pipe A (09308-14010)", 1, "Single", "Location 2", "", "", "TL-264"], ["2441", "", "Propeller Shaft Center Bearing Replacer (09330-50010)", 1, "Single", "Location 2", "", "", "TL-265"], ["2442", "", "Extension Pipe (09309-60010)", 1, "Single", "Location 2", "", "", "TL-266"], ["2443", "", "Rear Axle Hub Guide Tool (09523-36010)", 1, "Single", "Location 2", "", "", "TL-267"], ["2444", "", "Rear Wheel Bearing Replacer (09515-30010)", 1, "Single", "Location 2", "", "", "TL-268"], ["2445", "", "Upper Ball Joint Dust Cover Replacer (09636-20010)", 1, "Single", "Location 2", "", "", "TL-269"], ["2446", "", "Cover & Seal Replacer (09223-00010)", 1, "Single", "Location 2", "", "", "TL-270"], ["2447", "", "Transmission Bearing Replacer (09309-37010)", 1, "Single", "Location 2", "", "", "TL-271"], ["2448", "", "Oil Seal Replacer (09350-06040)", 1, "Single", "Location 2", "", "", "TL-272"], ["2449", "", "Front Hub Inner Bearing Cone Replacer (09608-06041)", 2, "Single", "Location 2", "", "", "TL-273"], ["2501", "", "Engine Cylinder Head Valve Puller", 3, "Single", "Location 2", "", "", "TL-274"], ["2502", "", "Arm Set - Small", 3, "Single", "Location 2", "", "", "TL-275"], ["2503", "", "Arm Set - Big", 2, "Single", "Location 2", "", "", "TL-276"], ["2504", "", "Puller - Big", 1, "Single", "Location 2", "", "", "TL-277"], ["2505", "", "Puller - Medium", 1, "Single", "Location 2", "", "", "TL-278"], ["2551", "", "FUEL PUMP SST (09808-01420)", 1, "Single", "Location 2", "", "", "TL-279"], ["2552", "", "FUEL PUMP SST (4 LEGS)", 1, "Single", "Location 2", "", "", "TL-280"], ["2561", "", "LEVER 1", 1, "Single", "Location 2", "", "", "TL-281"], ["2562", "", "LEVER 2", 1, "Single", "Location 2", "", "", "TL-282"], ["2563", "", "LEVER 3", 1, "Single", "Location 2", "", "", "TL-283"], ["2564", "", "LEVER 4", 1, "Single", "Location 2", "", "", "TL-284"], ["2565", "", "TIEL ROD END SST", 1, "Single", "Location 2", "", "", "TL-285"], ["2566", "", "T-ROD", 1, "Single", "Location 2", "", "", "TL-286"], ["2567", "", "OIL SEAL PULLER (09308-00010)", 1, "Single", "Location 2", "", "", "TL-287"], ["2571", "", "Variable Pin Wrench Set (09960-10010)", 1, "Single", "Location 2", "", "", "TL-288"], ["2572", "", "INSULATING GLOVES", 1, "Single", "Location 2", "", "", "TL-289"], ["2573", "", "TRIM FASTENER & MOLDING REMOVAL KIT", 1, "Set", "Location 2", "5 pc set", "", "TL-290"], ["2601", "", "FILTER REMOVER (3 FINGURE)", 1, "Single", "Location 2", "", "", "TL-291"], ["2602", "", "FILTER REMOVER (09228-10002)", 1, "Single", "Location 2", "", "", "TL-292"], ["2603", "", "FILTER REMOVER (092S0-00340)", 1, "Single", "Location 2", "", "", "TL-293"], ["2604", "", "FILTER REMOVER (09228-34010)", 1, "Single", "Location 2", "", "", "TL-294"], ["2611", "", "FILTER REMOVER (09228-22020)", 1, "Single", "Location 2", "", "", "TL-295"], ["2612", "", "FILTER REMOVER (09228-44011)", 1, "Single", "Location 2", "", "", "TL-296"], ["2613", "", "FILTER REMOVER (09228-78010)", 2, "Single", "Location 2", "", "", "TL-297"], ["2614", "", "FILTER REMOVER (09228-60010)", 2, "Single", "Location 2", "", "", "TL-298"], ["2621", "", "FILTER REMOVER (CHAIN TYPE)", 1, "Single", "Location 2", "", "", "TL-299"], ["2622", "", "FILTER REMOVER (BELT TYPE)", 1, "Single", "Location 2", "", "", "TL-300"], ["2623", "", "FILTER REMOVER (RING TYPE)", 3, "Single", "Location 2", "", "", "TL-301"], ["2631", "", "Piston Spring No.1 Compressor (09351-87201)", 1, "Single", "Location 2", "", "", "TL-302"], ["2632", "", "Brake Caliper Compressor (09719-00010)", 1, "Single", "Location 2", "", "", "TL-303"], ["2633", "", "Valve Spring Compressor (09202-43013)", 1, "Single", "Location 2", "", "", "TL-304"], ["2634", "", "Variable Open Wrench (09922-10010)", 1, "Single", "Location 2", "", "", "TL-305"], ["2635", "", "C-CLAMP (100 mm - 4\")", 1, "Single", "Location 2", "", "", "TL-306"], ["2651", "", "AC Service Manifold", 1, "Single", "Location 2", "", "", "TL-307"], ["2652", "", "AC Charging Manifold Gauge - 1", 1, "Single", "Location 2", "", "", "TL-308"], ["2653", "", "AC Charging Manifold Gauge - 2", 1, "Single", "Location 2", "", "", "TL-309"], ["2661", "", "Jumper Cable", 1, "Single", "Location 2", "", "", "TL-310"], ["2724", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-311"], ["2727", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-312"], ["2730", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-313"], ["2732", "", "SOCKET WRENCH", 2, "Single", "Location 2", "", "", "TL-314"], ["2733", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-315"], ["2736", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-316"], ["2738", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-317"], ["2746", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-318"], ["2748", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-319"], ["2750", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-320"], ["2755", "", "Wheel Adjusting Nut Wrench (09607-60020)", 3, "Single", "Location 2", "", "", "TL-321"], ["2771", "", "COMBINATION SPANNER 10", 1, "Single", "Location 2", "", "", "TL-322"], ["2772", "", "COMBINATION SPANNER 12", 1, "Single", "Location 2", "", "", "TL-323"], ["2773", "", "COMBINATION SPANNER 18 - A", 1, "Single", "Location 2", "", "", "TL-324"], ["2774", "", "COMBINATION SPANNER 18 - B", 1, "Single", "Location 2", "", "", "TL-325"], ["2775", "", "COMBINATION SPANNER 22", 1, "Single", "Location 2", "", "", "TL-326"], ["2776", "", "COMBINATION SPANNER 27", 1, "Single", "Location 2", "", "", "TL-327"], ["2777", "", "COMBINATION SPANNER 32", 1, "Single", "Location 2", "", "", "TL-328"], ["2781", "", "STUD EXTRACTOR SOCKET", 1, "Single", "Location 2", "", "", "TL-329"], ["2782", "", "O2 Sensor Wrench (09224-00010)", 1, "Single", "Location 2", "", "", "TL-330"], ["2783", "", "Drive Pinion Lock Nut Wrench (09564-16010)", 1, "Single", "Location 2", "", "", "TL-331"], ["2784", "", "Drive Pinion Lock Nut Wrench (09564-16020)", 1, "Single", "Location 2", "", "", "TL-332"], ["2785", "", "Bearing Guide Nut Wrench (09631-20060)", 1, "Single", "Location 2", "", "", "TL-333"], ["2786", "", "Back-up Light Switch Tool (09817-16011)", 1, "Single", "Location 2", "", "", "TL-334"], ["2154A", "", "Pipe Wrench 18\" - A", 1, "Single", "Location 2", "", "", "TL-335"], ["2154B", "", "Pipe Wrench 18\" - B", 1, "Single", "Location 2", "", "", "TL-336"], ["2282A", "", "Extension bar (60 cm) A", 1, "Single", "Location 2", "", "", "TL-337"], ["2282B", "", "Extension bar (60 cm) B", 1, "Single", "Location 2", "", "", "TL-338"], ["2282C", "", "Extension bar (60 cm) C", 1, "Single", "Location 2", "", "", "TL-339"], ["2282D", "", "Extension bar (60 cm) D", 1, "Single", "Location 2", "", "", "TL-340"], ["2307A", "", "Clutch Guide (09601-36020)", 1, "Single", "Location 2", "", "", "TL-341"], ["2307B", "", "Clutch Guide (09301-20020)", 1, "Single", "Location 2", "", "", "TL-342"], ["2307C", "", "Clutch Guide", 1, "Single", "Location 2", "", "", "TL-343"], ["2307D", "", "Clutch Guide", 1, "Single", "Location 2", "", "", "TL-344"], ["2307E", "", "Clutch Guide", 1, "Single", "Location 2", "", "", "TL-345"], ["2354A", "", "Rear Axle Shaft Puller - A (09520-00031)", 1, "Single", "Location 2", "", "", "TL-346"], ["2354B", "", "Rear Axle Shaft Puller - B (09520-00031)", 1, "Single", "Location 2", "", "", "TL-347"], ["2356A", "", "Bearing Remover small - A (09950-00020)", 1, "Single", "Location 2", "", "", "TL-348"], ["2356B", "", "Bearing Remover small - B (09950-00020)", 1, "Single", "Location 2", "", "", "TL-349"], ["2511A", "", "COIL SPRING COMPRESSOR - A (09727-30022)", 1, "Single", "Location 2", "", "", "TL-350"], ["2511B", "", "COIL SPRING COMPRESSOR - B (09727-30022)", 1, "Single", "Location 2", "", "", "TL-351"], ["2715D", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-352"], ["2717F", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-353"], ["2724D", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-354"], ["2727D", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-355"], ["2730F", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-356"], ["2730FD", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-357"], ["2732F", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-358"], ["2732FD", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-359"], ["2734D", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-360"], ["2735FD", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-361"], ["2738D", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-362"], ["2741D", "", "SOCKET WRENCH", 2, "Single", "Location 2", "", "", "TL-363"], ["2741FD", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-364"], ["2742F", "", "SOCKET WRENCH", 1, "Single", "Location 2", "", "", "TL-365"]];
 const TECHS=[["EM", "2205786", "Ajas Mon Koovullamparambil"], ["EM", "2206814", "Amal Jayan"], ["EM", "2409827", "Anandhu Babu"], ["EM", "1110030", "Andi Bn Suhardi Hasan"], ["EM", "2206845", "Aylwin Albert"], ["EM", "1207026", "Binoj Kunnuparambil Valsan"], ["EM", "2210072", "Gihan Lakshitha"], ["EM", "1610005", "Ijas Ahmed Idurus Salaldeen"], ["EM", "2501969", "Jithin Baiju Sheeja"], ["EM", "1611018", "Mohamed Mufaris Mohamed Nasar"], ["EM", "2206834", "Pubudu Anuradha Kularathna Wetawerell"], ["EM", "1309033", "Rhendy Cavalera Rasidi"], ["EM", "2206813", "Sibi Thomas Pulikottil"], ["QS", "1611041", "Arnie Pingol Dela Cruz"], ["QS", "25021004", "Arun Kozhikkal Omanakuttan"], ["QS", "1704018", "Chandana jayasekera Ungadura Yalage"], ["QS", "1611021", "Kasun Dananjaya Wijesekara Arachchilage"], ["QS", "2205796", "Krishnakishor Nadiparambath"], ["QS", "1309031", "Mahmoud Firmansyah Syarifudin"], ["QS", "1503044", "Mohamed Imthikaf Mohamed Nisar"], ["QS", "1610004", "Mohamed Kameel Mohamed Nawas"], ["QS", "1611020", "Mohamed Minhaj Mohamed Asraff"], ["QS", "1610123", "Mohammad Ifnas Musthafa Kisar"], ["QS", "1412012", "Mohomed Azwan Mohomed Nihar"], ["QS", "1702011", "Muhammad Shameer Ahamadu Hasan"], ["QS", "2412948", "Sanil Joseph"], ["QS", "25021006", "Shyam krisnan Manappattoyil"], ["QS", "2206806", "Travin Radly Park Gerlack"], ["QL", "1911220", "Akhil Thomas"], ["QL", "2206822", "Anantha Krishnan"], ["QL", "1610139", "Chathuranga Mallawa Arachchi"], ["QL", "1208001", "Harikrishnan Madathilparampi"], ["QL", "1112012", "Heru Hermawan Bn Ading Misad"], ["QL", "1611040", "Jericho Millaris Balais"], ["QL", "1402013", "Kenneth Delima Francisco"], ["QL", "2205798", "Mohamed Aadhil Mohamed Nawfar"], ["QL", "2205768", "Mohamed Farshad Thahir Fasi"], ["QL", "1701019", "Mohamed Mufees Mohamed Iqbal"], ["QL", "2205777", "Mohamed Nuzmideen"], ["QL", "1606035", "Munavar Fairoose Melekavat"], ["QL", "2206856", "Nabinsha Kollasseril Akbar"], ["QL", "610030", "Raul Bermudez Leoncio"], ["QL", "1601013", "Varghese Madassery"], ["GR", "9302005", "Arshad Mahmood Abdul Majeed"], ["GR", "2306269", "Arun Kumar Sreekumaran Nair"], ["GR", "1206100", "Jayaram Saseendrababu"], ["GR", "2402525", "Joji joy"], ["GR", "2411912", "Kiran Padinhara Veedu"], ["GR", "2206815", "Lishith Lakshman"], ["GR", "1604023", "Mahesh Tharayil"], ["GR", "2401512", "Maneesh Geetha"], ["GR", "1502016", "Mohamed Arshad Mohamed"], ["GR", "2307291", "Nishanth Kallathil Anandha Krishnan"], ["GR", "706016", "Noel Alde Dasig"], ["GR", "1206029", "Ratheesh Edathadan Narayanan"], ["GR", "2501977", "Sarath Kumar"], ["GR", "2505122", "Shyjo joy"], ["GR", "805017", "Soni chacko Kujukitty Chacko"], ["GR", "1206070", "Sumesh Chittettu Balan Pillai"], ["GR", "2501978", "Sumil Babu"], ["BS", "2310382", "Abhinav Vadakkanmar Veedu"], ["BS", "1604021", "Abhiraj Madavana Ashokan"], ["BS", "25021011", "Abhishay Chandrababu Sushama"], ["BS", "2412939", "Abin Puthenpurackal Sebastian"], ["BS", "2501989", "Agineesh Mele Nelluli Parambath"], ["BS", "2507170", "Ajayakumar Puthanpurakkal"], ["BS", "1206069", "Ajeesh Muttathu Parambil"], ["BS", "2409826", "Ajith Soman"], ["BS", "2510266", "Akhil Aradipadath Ramakrishnan"], ["BS", "2412920", "Akhil Chettichi Veettil"], ["BS", "1812014", "Akhil Rajendran"], ["BS", "2501990", "Akshay Mavili"], ["BS", "2310420", "Ananthu Koodathingal Thilakan"], ["BS", "2409773", "Aneesh Abdul Rahim"], ["BS", "2307292", "Aneesh Janardhanan"], ["BS", "1008047", "Angelo Mandap Gueco"], ["BS", "1205090", "Anulal Prathapan"], ["BS", "2512293", "Anwar Sirajudeen"], ["BS", "1905029", "Arunkumar Thannimalayil Krishnan"], ["BS", "2606080", "Athul Placheril Anilkumar"], ["BS", "2507169", "Boby Francis"], ["BS", "1604025", "Dileesh Chelakkottukara Vasu"], ["BS", "9901010", "Eduardo Jr La Torre"], ["BS", "1605022", "Gireesh Babu Krishnankutty"], ["BS", "2412921", "Githesh Sivadasan"], ["BS", "1605021", "Ismayil Girmukki"], ["BS", "1412013", "Jegan Vijayanathan"], ["BS", "1207006", "Jinesh Kuzhikkatteri Ayyappan"], ["BS", "2607115", "Jishnu Moorkkanattil Shaji"], ["BS", "2409765", "Jomon Mannalayil Joy"], ["BS", "1604020", "Kannan Nappan"], ["BS", "1310052", "Kapila De Obinamuni"], ["BS", "509005", "Martial Law Mabasa Orenia"], ["BS", "1610020", "Masukoon Cader Bawa"], ["BS", "1612016", "MD lstekhar Nazir\u200e"], ["BS", "1610011", "Mohamed Haroon Abdul Cader"], ["BS", "2504110", "Mohamed Sabeer Kuzhikkarakattil Athanikkal"], ["BS", "2305250", "Mohammad Shamsher Alam"], ["BS", "1011048", "Mubeen Miya Rawoot"], ["BS", "2311456", "Muhammed Faris Padikkapparamban"], ["BS", "2412929", "Muhammed Yasir Puvallur"], ["BS", "1610053", "Nalin Kumara Pathirathna Pathirannehelag\u200e"], ["BS", "2508208", "Naveen Puthiya Purayil"], ["BS", "2410876", "Nidhin Valiya Muttam"], ["BS", "2208946", "Niroshan Lakshitha Kodithuwakku Arachchige"], ["BS", "2402526", "Niyas Puthiyaveettil Muhammedali"], ["BS", "1310097", "Owen Ramos Bricenio"], ["BS", "603030", "Prakash Balan Kizhuthany"], ["BS", "2412940", "Pramod Kizhakumbri Paramu"], ["BS", "706008", "Pramod Theyyan"], ["BS", "1206039", "Prasad Gopalan"], ["BS", "1905025", "Praveen Tharayilthazhe Pradeep"], ["BS", "2312485", "Rahul Krishnan"], ["BS", "1901019", "Rahul Thaikkattupadikkal Rajan"], ["BS", "2510246", "Rajeev Gopi"], ["BS", "706045", "Rajesh Kumman"], ["BS", "2602020", "Ranjith Kottampotta Babu"], ["BS", "705010", "Reji Thachu Kunninmel"], ["BS", "2206857", "Renjith Somu"], ["BS", "1610081", "Samantha Meettage"], ["BS", "1205093", "Satheesh Kumar Sudha"], ["BS", "2312474", "Shamnas Hameed"], ["BS", "1610028", "Sharanga Priyanjan Rajapakshage"], ["BS", "2606079", "Sharon Shaji"], ["BS", "2508215", "Sharun Raveendran Ammiyaltl"], ["BS", "1903006", "Shibu Sathru Khanan"], ["BS", "2606081", "Shirinlal Kalady Thazhathepurakkal"], ["BS", "1205054", "Siddiq Karincheriparambu Kunjumohamed"], ["BS", "2205785", "Sijo Chirayil Joseph"], ["BS", "25021005", "Sudheesh Thattil Mohanan"], ["BS", "2206823", "Sudhin Kutti Velayudhan"], ["BS", "2310421", "Sunilkumar Koodathingal Narayanan"], ["BS", "1611060", "Suranga Udayakantha Hewa"], ["BS", "1604018", "Suresh Padaparambil Ramakrishnan"], ["BS", "705071", "Teddy Agcawili Dungo"], ["BS", "1905038", "Varun Kannam Kulam Prakasan"], ["BS", "1604022", "Vinod Kuzhikkattiri Kesavan"], ["BS", "2310412", "Viraj Chathuranga Ramanayakage"], ["BS", "1905030", "Visagh Moolekkattil Padmanabhan"], ["BS", "2412938", "Yadukrishnan Palakkaparambil"]];
 </script>
 <!-- QR scanner library (free, open source) -->
@@ -805,7 +820,17 @@ function scanTool(){
   startScanner(txt=>{const id=txt.trim();if(toolById(id)){stopScanner();openTool(id);}else toast('Unknown tool QR');});
 }
 let CUR=null;
-function openTool(tid){CUR=tid;const st=toolStatus(tid);const m=st!=='IN'?openMove(tid):null;
+function openTool(tid){CUR=tid;
+  const N=pcNof(tid);
+  if(N){                                   // piece tool
+    const mine=myMove(tid);
+    if(mine){ if(mine.status==='OUT')return returnScreen(tid,mine);
+              if(mine.status==='REQ')return reqScreen(tid,mine);
+              return pendingScreen(tid,mine); }
+    if(freePcs(tid)>0) return takeScreen(tid);
+    return outWithScreen(tid,openMovesOf(tid)[0]);
+  }
+  const st=toolStatus(tid);const m=st!=='IN'?openMove(tid):null;
   if(st==='IN'){takeScreen(tid);return;}
   if(st==='OUT'){(m.techId===ME.id)?returnScreen(tid,m):outWithScreen(tid,m);return;}
   if(st==='REQ'){reqScreen(tid,m);return;}
@@ -846,17 +871,93 @@ function pendingScreen(tid,m){
 
 function takeScreen(tid){
   const t=toolById(tid);setTitle('Take tool',t[T_ID]);
+  const N=pcN(t), free=N?freePcs(tid):0;
   const isSet=t[T_TYPE]==='Set';const items=(t[T_SET]||'').split(',').map(s=>s.trim()).filter(Boolean);
-  $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button>
+  PK={mode:null,n:0,N:N};
+  const head=`<button class="back" onclick="techToolList()">\u2039 Back</button>
     <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t)}</div></div>
-    <div class="card"><div class="kv"><span class="k">Taken by</span><span class="v">${esc(ME.name)}</span></div><div class="kv"><span class="k">Section · ID</span><span class="v">${esc(ME.sec)} · ${esc(ME.id)}</span></div><div class="kv"><span class="k">Time</span><span class="v">now (auto)</span></div></div>
+    <div class="card"><div class="kv"><span class="k">Taken by</span><span class="v">${esc(ME.name)}</span></div><div class="kv"><span class="k">Section \u00b7 ID</span><span class="v">${esc(ME.sec)} \u00b7 ${esc(ME.id)}</span></div><div class="kv"><span class="k">Time</span><span class="v">now (auto)</span></div></div>`;
+  if(N){
+    $('view').innerHTML=head+`
+    <div class="card">
+      <h3>This is a set &mdash; ${N} pieces</h3>
+      <div class="pcbar"><b>${free}</b> of ${N} in store right now${free<N?` \u00b7 <span style="color:var(--amber)">${N-free} out</span>`:''}</div>
+      <div class="pkmodes">
+        <button class="btn ${free<N?'ghost':'primary'}" id="pkFull" onclick="pkMode('full')" ${free<N?'disabled':''}>TAKE FULL SET &mdash; ${N} pcs</button>
+        <button class="btn ghost" id="pkSome" onclick="pkMode('some')">TAKE PIECES</button>
+      </div>
+      ${free<N?`<div class="alert warn" style="margin-top:10px">Full set not possible &mdash; ${N-free} piece${N-free!==1?'s are':' is'} already out.</div>`:''}
+      <div id="pkbox"></div>
+    </div>
+    <div class="alert info" style="margin-bottom:2px">The store keeper must hand this tool over and accept it before it is yours.</div>
+    <button class="btn primary" id="takeBtn" disabled onclick="doTake()">Request this tool</button>
+    <p class="muted center" id="pkHint" style="margin-top:10px">Choose full set, or name every piece you take.</p>`;
+    return;
+  }
+  $('view').innerHTML=head+`
     ${isSet&&items.length?`<div class="card"><h3>Which pieces?</h3>${items.map((it,i)=>`<div class="setrow"><input type="checkbox" id="it${i}" value="${esc(it)}" checked><label for="it${i}">${esc(it)}</label></div>`).join('')}</div>`:isSet?`<div class="card"><div class="alert info">This is a set; piece list not entered yet.</div></div>`:''}
-    <div class="alert info" style="margin-bottom:2px">The store keeper must hand this tool over and accept it before it is yours.</div>\n    <button class="btn primary" onclick="doTake()">Request this tool</button>`;
+    <div class="alert info" style="margin-bottom:2px">The store keeper must hand this tool over and accept it before it is yours.</div>
+    <button class="btn primary" onclick="doTake()">Request this tool</button>`;
 }
+/* ---------- the piece picker ---------- */
+let PK={mode:null,n:0,N:0};
+function pkMode(mode){
+  const free=freePcs(CUR), N=PK.N;
+  if(mode==='full'&&free<N){toast('Full set not possible');return;}
+  PK.mode=mode;PK.n=0;
+  const F=$('pkFull'),S=$('pkSome');
+  F.className='btn '+(mode==='full'?'primary':'ghost');
+  S.className='btn '+(mode==='some'?'primary':'ghost');
+  if(mode==='full'){
+    $('pkbox').innerHTML=`<div class="alert ok" style="margin-top:12px"><b>Full set &mdash; all ${N} pieces.</b><br>You must bring back all ${N}.</div>`;
+    pkArm(true,'Full set selected.');return;
+  }
+  let row='';for(let i=1;i<=free;i++)row+=`<button class="pcnum" data-n="${i}" onclick="pkCount(${i})">${i}</button>`;
+  $('pkbox').innerHTML=`<div style="margin-top:14px"><label class="f">How many pieces do you take?</label>
+      <div class="pcnums">${row}</div></div><div id="pkfields"></div>`;
+  pkArm(false,'Choose how many pieces.');
+}
+function pkCount(n){
+  PK.n=n;
+  document.querySelectorAll('.pcnum').forEach(b=>b.classList.toggle('on',+b.dataset.n===n));
+  let f='';for(let i=0;i<n;i++)f+=`<div class="pcf"><span class="pcl">${i+1}</span><input class="big pcin" id="pc${i}" placeholder="which piece? e.g. 10mm" oninput="pkCheck()" autocomplete="off"></div>`;
+  $('pkfields').innerHTML=`<label class="f" style="margin-top:14px">Name every piece you take</label>${f}
+    <div class="muted" style="margin-top:6px">You cannot take the tool until all ${n} are typed.</div>`;
+  pkCheck();
+}
+function pkVals(){const v=[];for(let i=0;i<PK.n;i++){const e=$('pc'+i);v.push(e?e.value.trim():'');}return v;}
+function pkArm(ok,msg){const b=$('takeBtn');if(b)b.disabled=!ok;const h=$('pkHint');if(h)h.textContent=msg;}
+function pkCheck(){
+  const v=pkVals(), empty=v.filter(x=>!x).length, low=v.map(x=>x.toLowerCase());
+  const dup=low.some((x,i)=>x&&low.indexOf(x)!==i);
+  document.querySelectorAll('.pcin').forEach((e,i)=>e.classList.toggle('bad',!v[i]));
+  if(empty) return pkArm(false,`Type ${empty} more piece${empty!==1?'s':''}.`);
+  if(dup)   return pkArm(false,'Same piece typed twice \u2014 change it.');
+  pkArm(true,`${v.length} piece${v.length!==1?'s':''} ready.`);
+}
+
 async function doTake(){
-  const t=toolById(CUR);let items='';
-  if(t[T_TYPE]==='Set'){items=[...document.querySelectorAll('.setrow input:checked')].map(b=>b.value).join(', ');}
-  await window.DB.add({kind:'TOOL',tid:CUR,tech:ME.name,techId:ME.id,sec:ME.sec,idBy:ID_METHOD,req:new Date().toISOString(),out:null,ret:null,cin:null,note:'',items,status:'REQ'});
+  const t=toolById(CUR);let items='',full=false,pcs=0;
+  const N=pcN(t);
+  if(N){                                   // the hard rule lives here
+    if(!PK.mode){toast('Choose full set or pieces');return;}
+    const free=freePcs(CUR);
+    if(PK.mode==='full'){
+      if(free<N){toast('Full set not possible now');return;}
+      full=true;pcs=N;items='FULL SET ('+N+' pcs)';
+    }else{
+      const v=pkVals();
+      if(!v.length){toast('Choose how many pieces');return;}
+      if(v.some(x=>!x)){toast('Type every piece first');return;}
+      const low=v.map(x=>x.toLowerCase());
+      if(low.some((x,i)=>low.indexOf(x)!==i)){toast('Same piece typed twice');return;}
+      if(v.length>free){toast('Only '+free+' piece(s) left');return;}
+      pcs=v.length;items=v.join(', ');
+    }
+  }else if(t[T_TYPE]==='Set'){
+    items=[...document.querySelectorAll('.setrow input:checked')].map(b=>b.value).join(', ');
+  }
+  await window.DB.add({kind:'TOOL',tid:CUR,tech:ME.name,techId:ME.id,sec:ME.sec,idBy:ID_METHOD,req:new Date().toISOString(),out:null,ret:null,cin:null,note:'',items,full,pcs,status:'REQ'});
   toast('Sent to store keeper — '+CUR);techToolList();
 }
 let RG=null;
@@ -954,6 +1055,19 @@ function dd(){[...document.querySelectorAll('#dots .pindot')].forEach((d,i)=>d.c
 
 function toolMoves(){return LOG.filter(m=>m.kind==='TOOL');}
 
+/* ============== SET TOOLS WITH PIECES ==============
+   "Set of" = "27 PC SET"  ->  a PIECE TOOL.
+   Technician takes the WHOLE set, or names every single piece he takes.
+   No typing = no tool. Several men may hold different pieces at once. */
+function pcN(t){ if(!t||t[T_TYPE]!=='Set')return 0;
+  const m=/(\d+)\s*PC/i.exec(String(t[T_SET]||'')); return m?parseInt(m[1],10):0; }
+const pcNof=tid=>pcN(toolById(tid));
+function openMovesOf(tid){ return LOG.filter(m=>m.kind==='TOOL'&&m.tid===tid&&m.status!=='IN'); }
+function piecesOut(tid){ const N=pcNof(tid); if(!N)return 0;
+  return openMovesOf(tid).reduce((a,m)=>a+(m.full?N:(parseInt(m.pcs,10)||0)),0); }
+function freePcs(tid){ const N=pcNof(tid); return N?Math.max(0,N-piecesOut(tid)):0; }
+function myMove(tid){ return openMovesOf(tid).find(m=>ME&&m.techId===ME.id)||null; }
+
 /* ================= DAMAGE REGISTER =================
    Every time a technician returns a tool and marks it B, C or D, that move record
    keeps the grade and his own words. Those records are NEVER deleted, so the damage
@@ -979,11 +1093,12 @@ async function dmgReopen(id){
   toast('Put back in the damaged list');
 }
 function counts(){
-  const map={};toolMoves().forEach(m=>{if(m.status!=='IN')map[m.tid]=m;});
+  const open=toolMoves().filter(m=>m.status!=='IN');
+  const tids={};open.forEach(m=>{tids[m.tid]=1;});
   let out=0,pending=0,overdue=0,damaged=0,reqs=0;
-  Object.values(map).forEach(m=>{if(m.status==='OUT'){out++;if(isOverdue(m))overdue++;}if(m.status==='PENDING')pending++;if(m.status==='REQ')reqs++;});
+  open.forEach(m=>{if(m.status==='OUT'){out++;if(isOverdue(m))overdue++;}if(m.status==='PENDING')pending++;if(m.status==='REQ')reqs++;});
   damaged=damageOpen().length;
-  return {total:ALLTOOLS().length,inStore:ALLTOOLS().length-Object.keys(map).length,out,pending,overdue,damaged,reqs};
+  return {total:ALLTOOLS().length,inStore:ALLTOOLS().length-Object.keys(tids).length,out,pending,overdue,damaged,reqs};
 }
 let TAB='out';
 function dash(){
@@ -1033,10 +1148,9 @@ function rlist(){
   if(TAB==='techprofile')return rtechprofile(box);
   if(TAB==='damaged')return rdamaged(box);
   if(TAB==='all')return rallTools(box);
-  const map={};toolMoves().forEach(m=>{if(m.status!=='IN')map[m.tid]=m;});
+  const open=toolMoves().filter(m=>m.status!=='IN');
   let items=[];
-  if(TAB==='all')items=ALLTOOLS().map(t=>({t,m:map[t[T_ID]]||null}));
-  else Object.values(map).forEach(m=>{
+  open.forEach(m=>{
     if(TAB==='requests'&&m.status==='REQ')items.push({t:toolById(m.tid)||[m.tid,'','(tool not in the list)',1,'Single','','',''],m});
     if(TAB==='out'&&m.status==='OUT')items.push({t:toolById(m.tid)||[m.tid,'','(tool not in the list)',1,'Single','','',''],m});
     if(TAB==='overdue'&&m.status==='OUT'&&isOverdue(m))items.push({t:toolById(m.tid)||[m.tid,'','(tool not in the list)',1,'Single','','',''],m});
@@ -1056,6 +1170,7 @@ function rlist(){
       <div class="sub" style="font-weight:700;color:var(--brass)">${meta(t)}</div>
       <div class="sub">${esc(m.tech)} · ${esc(m.sec)} · ${when}</div>
       ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}
+      ${m.missPcs?`<div class="sub" style="color:var(--red);font-weight:800">NOT RETURNED: ${esc(m.missPcs)}</div>`:''}
       ${m.status==='PENDING'&&!dmg?`<div class="sub">Returned ${fmtTime(m.ret)} &middot; condition <b>A &mdash; Good</b></div>`:''}
       ${dmg?`<div class="condrep">
           <div class="cr-top"><span class="cr-lab">Condition reported</span><span class="cr-grade">${m.cin} &mdash; ${GRADE_WORD[m.cin]||''}</span></div>
@@ -1070,7 +1185,7 @@ function rlist(){
       ${m.inBy?`<div class="sub">Taken back by <b>${esc(m.inBy)}</b></div>`:''}
       ${m.status==='OUT'&&m.noPhone?`<div class="row2"><button class="btn green sm" onclick="npReturn('${m.id}')">Take back (no phone)</button></div>`:''}
       ${m.status==='REQ'?`<div class="row2"><button class="btn red sm" onclick="reqRej('${m.id}')">Decline</button><button class="btn green sm" onclick="reqOk('${m.id}')">Accept — give tool</button></div>`:''}
-      ${m.status==='PENDING'?`<div class="row2"><button class="btn red sm" onclick="rej('${m.id}')">Reject</button><button class="btn green sm" onclick="cin('${m.id}')">Accept — take back</button></div>`:''}</div>`;
+      ${m.status==='PENDING'?`<div class="row2"><button class="btn red sm" onclick="rej('${m.id}')">Reject</button><button class="btn green sm" onclick="${pcNof(m.tid)?`cinPieces('${m.id}')`:`cin('${m.id}')`}">Accept — take back</button></div>`:''}</div>`;
   }).join('');
 }
 /* ================= DAMAGED TOOLS SCREEN =================
@@ -1115,6 +1230,15 @@ let AF='all', AQ='';
 function saf(f){ AF=f; rlist(); }
 function aq(){ AQ=($('aqi')?$('aqi').value:''); const b=$('alist'); if(b) paintAll(b); }
 function toolLive(tid){
+  const N=pcNof(tid);
+  if(N){
+    const ms=openMovesOf(tid);
+    if(!ms.length) return {k:'in',label:'In store',cls:'instore',m:null,N,free:N,ms:[]};
+    const free=freePcs(tid);
+    const anyOver=ms.some(x=>x.status==='OUT'&&isOverdue(x));
+    if(free<=0) return {k:anyOver?'over':'out',label:anyOver?'OVERDUE':'All '+N+' out',cls:'out',m:ms[0],N,free:0,ms};
+    return {k:'part',label:free+' of '+N+' in store',cls:'pend',m:ms[0],N,free,ms};
+  }
   const m=openMove(tid);
   if(!m) return {k:'in',label:'In store',cls:'instore',m:null};
   if(m.status==='REQ')     return {k:'req',label:'Waiting hand over',cls:'pend',m};
@@ -1137,8 +1261,8 @@ function paintAll(box){
   let list=searchTools(AQ);
   list=list.filter(t=>{
     const L=toolLive(t[T_ID]);
-    if(AF==='in')   return L.k==='in';
-    if(AF==='out')  return L.k==='out'||L.k==='over';
+    if(AF==='in')   return L.k==='in'||L.k==='part';
+    if(AF==='out')  return L.k==='out'||L.k==='over'||L.k==='part';
     if(AF==='over') return L.k==='over';
     if(AF==='dmg')  return !!openDmg[t[T_ID]];
     if(AF==='man')  return isManual(t[T_ID]);
@@ -1148,8 +1272,9 @@ function paintAll(box){
   box.innerHTML=list.map(t=>{
     const L=toolLive(t[T_ID]), m=L.m, d=openDmg[t[T_ID]];
     let who='';
-    if(m&&L.k!=='in') who=`<div class="sub">${L.k==='req'?'Requested by':L.k==='ret'?'Returned by':'With'} <b>${esc(m.tech)}</b> \u00b7 ${esc(m.sec)}${m.out&&(L.k==='out'||L.k==='over')?' \u00b7 '+ago(m.out)+' ago':''}</div>`;
-    return `<div class="rec" style="border-left:4px solid ${L.k==='in'?'var(--green)':L.k==='over'?'var(--red)':'var(--amber)'};padding-left:10px">
+    if(L.k==='part') who=(L.ms||[]).map(x=>`<div class="sub">${x.status==='REQ'?'Requested':x.status==='PENDING'?'Coming back':'With'} <b>${esc(x.tech)}</b> \u00b7 ${x.full?'full set':esc(x.items||'')}</div>`).join('');
+    else if(m&&L.k!=='in') who=`<div class="sub">${L.k==='req'?'Requested by':L.k==='ret'?'Returned by':'With'} <b>${esc(m.tech)}</b> \u00b7 ${esc(m.sec)}${m.out&&(L.k==='out'||L.k==='over')?' \u00b7 '+ago(m.out)+' ago':''}</div>`;
+    return `<div class="rec" style="border-left:4px solid ${L.k==='in'?'var(--green)':L.k==='over'?'var(--red)':L.k==='part'?'var(--brass)':'var(--amber)'};padding-left:10px">
       <div class="hd"><span class="rid">${esc(t[T_ID])}</span>
         <span class="rname">${esc(t[T_NAME]||'(no name)')}</span>
         <span class="badge ${L.cls}">${L.label}</span>${isManual(t[T_ID])?'<span class="badge pend">Hand typed</span>':''}</div>
@@ -1209,7 +1334,7 @@ function rtechprofile(box){
       <div class="sub">OUT ${fmtTime(m.out)}${m.ret?' → IN '+fmtTime(m.ret):' · '+ago(m.out)+' ago'}${m.cin?' · condition <b>'+m.cin+'</b>':''}</div>
       ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}${m.note?`<div class="sub">Note: ${esc(m.note)}</div>`:''}
       ${dmg&&m.status==='PENDING'?`<div class="alert red" style="margin:8px 0 0">Defect — check before confirming</div>`:''}
-      ${m.status==='PENDING'?`<div class="row2"><button class="btn red sm" onclick="rej('${m.id}')">Reject</button><button class="btn green sm" onclick="cin('${m.id}')">Accept — take back</button></div>`:''}</div>`;
+      ${m.status==='PENDING'?`<div class="row2"><button class="btn red sm" onclick="rej('${m.id}')">Reject</button><button class="btn green sm" onclick="${pcNof(m.tid)?`cinPieces('${m.id}')`:`cin('${m.id}')`}">Accept — take back</button></div>`:''}</div>`;
   };
   let html=card;
   html+=`<div class="card" style="padding:6px 14px"><h3 style="margin:12px 4px 4px">With him now (${outNow.length})</h3>`;
@@ -1617,6 +1742,77 @@ async function cin(id){ if(!requireKeeper())return;
   await window.DB.update(id,{status:'IN',ret:new Date().toISOString(),
     inBy:KEEPER.short,inById:KEEPER.id,inByName:KEEPER.name});
   toast('Received by '+KEEPER.short); }
+
+/* ---------- store keeper counts the pieces back ---------- */
+let CP=null;
+function cinPieces(mid){
+  if(!requireKeeper())return;
+  const m=LOG.find(x=>x.id===mid); if(!m)return;
+  const t=toolById(m.tid), N=pcN(t);
+  CP={mid,N,full:!!m.full,names:String(m.items||'').split(',').map(x=>x.trim()).filter(Boolean)};
+  curStoreView=()=>cinPieces(mid);
+  setTitle('Count the pieces',t[T_ID]);
+  const body=CP.full
+    ? `<div class="alert info"><b>Full set &mdash; ${N} pieces.</b> Count them before you accept.</div>
+       <div class="pkmodes" style="margin-top:12px">
+         <button class="btn primary" onclick="cpAll()">ALL ${N} CAME BACK</button>
+         <button class="btn ghost" onclick="cpMiss()">SOME MISSING</button>
+       </div><div id="cpbox"></div>`
+    : `<label class="f">Tick every piece he gives back</label>
+       ${CP.names.map((n,i)=>`<div class="setrow"><input type="checkbox" id="cp${i}" value="${esc(n)}" checked onchange="cpCount()"><label for="cp${i}">${esc(n)}</label></div>`).join('')}
+       <div class="pcbar" id="cpcount" style="margin-top:12px"></div>
+       <button class="btn green" style="margin-top:12px" onclick="cpDone()">Accept &mdash; take back</button>`;
+  $('view').innerHTML=`<button class="back" onclick="dash()">\u2039 Back</button>
+    <div class="actban ret"><span class="ar">\u2193</span> Taking a set back <span class="sm2">count before you accept</span></div>
+    <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'')}</div><div class="meta">${meta(t)}</div></div>
+    <div class="card"><div class="kv"><span class="k">From</span><span class="v">${esc(m.tech)} \u00b7 ${esc(m.sec)}</span></div>
+      <div class="kv"><span class="k">Took</span><span class="v">${esc(m.items||'')}</span></div>
+      <div class="kv"><span class="k">Out since</span><span class="v">${fmtTime(m.out)}</span></div></div>
+    <div class="card">${body}</div>`;
+  if(!CP.full) cpCount();
+}
+function cpCount(){
+  const back=CP.names.filter((n,i)=>$('cp'+i)&&$('cp'+i).checked);
+  const miss=CP.names.length-back.length;
+  $('cpcount').innerHTML=miss?`<span style="color:var(--red);font-weight:800">${miss} piece${miss!==1?'s':''} NOT returned</span>`
+                             :`<b>All ${back.length} returned</b>`;
+}
+function cpAll(){ CP.back=CP.N; CP.missNames=[]; cpSave(); }
+function cpMiss(){
+  let row='';for(let i=1;i<=CP.N;i++)row+=`<button class="pcnum" data-n="${i}" onclick="cpMissN(${i})">${i}</button>`;
+  $('cpbox').innerHTML=`<label class="f" style="margin-top:14px">How many pieces are missing?</label>
+    <div class="pcnums">${row}</div><div id="cpfields"></div>`;
+}
+function cpMissN(n){
+  document.querySelectorAll('#cpbox .pcnum').forEach(b=>b.classList.toggle('on',+b.dataset.n===n));
+  let f='';for(let i=0;i<n;i++)f+=`<div class="pcf"><span class="pcl">${i+1}</span><input class="big" id="cm${i}" placeholder="which piece is missing?" autocomplete="off"></div>`;
+  $('cpfields').innerHTML=`<label class="f" style="margin-top:14px">Name every missing piece</label>${f}
+    <button class="btn green" style="margin-top:12px" onclick="cpMissDone(${n})">Accept &mdash; record missing</button>`;
+}
+function cpMissDone(n){
+  const v=[];for(let i=0;i<n;i++){const e=$('cm'+i);v.push(e?e.value.trim():'');}
+  if(v.some(x=>!x)){toast('Name every missing piece');return;}
+  CP.missNames=v; CP.back=CP.N-n; cpSave();
+}
+function cpDone(){
+  const back=CP.names.filter((x,i)=>$('cp'+i)&&$('cp'+i).checked);
+  CP.missNames=CP.names.filter(x=>!back.includes(x));
+  CP.back=back.length; cpSave();
+}
+async function cpSave(){
+  const m=LOG.find(x=>x.id===CP.mid)||{};
+  const miss=CP.missNames||[];
+  const patch={status:'IN',ret:new Date().toISOString(),
+    inBy:KEEPER.short,inById:KEEPER.id,inByName:KEEPER.name,
+    backPcs:CP.back, missPcs:miss.join(', ')};
+  if(miss.length){                       // stays in the damaged / missing register for good
+    patch.cin=(m.cin&&m.cin!=='A')?m.cin:'D';
+    patch.note=(m.note?m.note+' \u00b7 ':'')+'Pieces NOT returned: '+miss.join(', ');
+  }
+  await window.DB.update(CP.mid,patch);
+  toast(miss.length?miss.length+' piece(s) missing \u2014 recorded':'All pieces back \u2014 '+KEEPER.short);
+  CP=null; dash();
+}
 async function rej(id){ if(!requireKeeper())return;
   await window.DB.update(id,{status:'OUT',ret:null,cin:null,note:'',rejBy:KEEPER.short,rejById:KEEPER.id});
   toast('Sent back to technician'); }
@@ -1637,10 +1833,40 @@ async function rej(id){ if(!requireKeeper())return;
   var shA=document.getElementById('shA'),shT=document.getElementById('shT');
   var headA=document.getElementById('hLogoA'),headT=document.getElementById('hLogoT');
   var ARA=1, ART=554/90, bigA=124, bigT=54, settled=false;
-  function vw(){return window.innerWidth;} function vh(){return window.innerHeight;}
+  /* A browser FREEZES requestAnimationFrame while its tab is not the one being looked at.
+     On a PC the page is very often opened in a background tab, so the intro used to sit
+     frozen and then be wiped by the safety timer - the logos never flew to the header.
+     hidT = how long the tab has been hidden; every timing below subtracts it. */
+  var hidT=0, hid0=(document.hidden?1:0)&&0;
+  if(document.hidden)hid0=0;
+  document.addEventListener('visibilitychange',function(){
+    if(document.hidden){hid0=performance.now();}
+    else if(hid0){hidT+=performance.now()-hid0;hid0=0;}
+  });
+  function waitVisible(fn,ms){
+    setTimeout(function(){
+      if(document.hidden){
+        var on=function(){document.removeEventListener('visibilitychange',on);setTimeout(fn,60);};
+        return document.addEventListener('visibilitychange',on);
+      }
+      fn();
+    },ms);
+  }
+  /* use the REAL visible area: on a PC window.innerWidth also counts the scrollbar,
+     which pushed the intro logos a few px right of true centre */
+  function vw(){return document.documentElement.clientWidth||window.innerWidth;}
+  function vh(){return document.documentElement.clientHeight||window.innerHeight;}
+  /* intro logo size follows the screen. k=1 on a 390px phone (exactly as before),
+     bigger on a PC so the logos are not a tiny 124px dot on a wide black screen. */
+  function kscale(){
+    var baseTW=54*(554/90), baseH=124+26+54;
+    var k=Math.min(0.85*vw()/baseTW, 0.46*vh()/baseH);
+    return Math.max(0.8, Math.min(3, k));
+  }
   function place(){
-    var cx=vw()/2, cy=vh()*0.45, gap=26;
-    var aw=bigA*ARA, ah=bigA, tw=bigT*ART, th=bigT;
+    var k=kscale();
+    var cx=vw()/2, cy=vh()*0.45, gap=26*k;
+    var aw=bigA*k*ARA, ah=bigA*k, tw=bigT*k*ART, th=bigT*k;
     var total=ah+gap+th, topA=cy-total/2;
     flyA.style.width=aw+'px';flyA.style.height=ah+'px';flyA.style.left=(cx-aw/2)+'px';flyA.style.top=topA+'px';
     flyT.style.width=tw+'px';flyT.style.height=th+'px';flyT.style.left=(cx-tw/2)+'px';flyT.style.top=(topA+ah+gap)+'px';
@@ -1650,7 +1876,7 @@ async function rej(id){ if(!requireKeeper())return;
   [imgA,imgT].forEach(function(im){im.style.filter='brightness(.25) saturate(.4)';im.style.transform='translateY(24px)';im.style.opacity='0';});
   var DUR=4000,t0=0;
   function anim(now){
-    var p=Math.min((now-t0)/DUR,1);
+    var p=Math.min((now-t0-hidT)/DUR,1);
     var e=p<.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2;
     var br=0.25+e*1.15, sa=0.4+e*0.6;
     [imgA,imgT].forEach(function(im){
@@ -1658,15 +1884,17 @@ async function rej(id){ if(!requireKeeper())return;
       im.style.transform='translateY('+(24-24*e)+'px)';
       im.style.filter='brightness('+br+') saturate('+sa+') drop-shadow(0 0 '+(20*e)+'px rgba(255,150,60,'+(0.5*e)+'))';
     });
-    var pos=180-((now-t0)*0.08)%320;
+    var pos=180-((now-t0-hidT)*0.08)%320;
     shA.style.backgroundPosition=pos+'% 0';shT.style.backgroundPosition=pos+'% 0';
     if(p<1)requestAnimationFrame(anim);
     else{
       [imgA,imgT].forEach(function(im){im.style.transition='filter .6s';im.style.filter='brightness(1) saturate(1) drop-shadow(0 0 22px rgba(255,180,90,.5))';});
       shA.style.transition='opacity .45s';shT.style.transition='opacity .45s';shA.style.opacity='0';shT.style.opacity='0';
-      setTimeout(flyToHeader,620);
+      waitVisible(flyToHeader,620);
     }
   }
+  function box(e){var r=e.getBoundingClientRect();return [r.left,r.top,r.width,r.height];}
+  function put(f,b){f.style.left=b[0]+'px';f.style.top=b[1]+'px';f.style.width=b[2]+'px';f.style.height=b[3]+'px';}
   function flyToHeader(){
     if(settled)return;settled=true;
     // make sure the header images are really laid out before measuring (iOS decodes late)
@@ -1676,22 +1904,62 @@ async function rej(id){ if(!requireKeeper())return;
       var ok=ra.width>4&&ra.height>4&&rt.width>4&&rt.height>4;
       if(!ok&&tries<30){tries++;return setTimeout(measure,50);}
       if(!ok){return finish();}          // never leave logos stranded
-      var snap=document.getElementById('snap');
-      if(snap){
-        snap.style.width='320px';snap.style.height='320px';
-        snap.style.left=(vw()/2)+'px';snap.style.top=(vh()*0.45)+'px';
-        snap.style.transform='translate(-50%,-50%)';
-        snap.style.animation='snapflash .7s ease forwards';
-      }
       headA.style.visibility='hidden';headT.style.visibility='hidden';
-      var E='cubic-bezier(.45,0,.25,1)', T='.9s';
-      function go(f,r){
-        f.style.transition='left '+T+' '+E+', top '+T+' '+E+', width '+T+' '+E+', height '+T+' '+E;
-        f.style.left=r.left+'px';f.style.top=r.top+'px';f.style.width=r.width+'px';f.style.height=r.height+'px';
-      }
-      go(flyA,ra);go(flyT,rt);
-      setTimeout(finish,950);
+      flyA.style.transition='none';flyT.style.transition='none';
+      /* 1) OUTLINE - the solid logos burn away to a glowing outline of themselves */
+      var OL=560, c0=performance.now(), ch=hidT;
+      function edge(t,c){ return 'drop-shadow('+t+'px 0 0 '+c+') drop-shadow(-'+t+'px 0 0 '+c+') '
+                               +'drop-shadow(0 '+t+'px 0 '+c+') drop-shadow(0 -'+t+'px 0 '+c+')'; }
+      (function outline(now){
+        var p=Math.min((now-c0-(hidT-ch))/OL,1);
+        var e=p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;     // ease in-out
+        var fill=1-0.95*e;                            // the inside goes dark
+        var sat =1-0.80*e;
+        var t   =(0.6+2.0*e).toFixed(2);              // outline gets thicker
+        var glow=(10+30*e).toFixed(0);
+        var col ='rgba(255,'+Math.round(200+50*e)+','+Math.round(110+125*e)+',1)';
+        [imgA,imgT].forEach(function(im){
+          im.style.transform='scale('+(1+0.05*e)+')';
+          im.style.filter='brightness('+fill.toFixed(3)+') saturate('+sat.toFixed(2)+') '
+            +edge(t,col)+' drop-shadow(0 0 '+glow+'px rgba(255,190,100,'+(0.35+0.5*e).toFixed(2)+'))';
+        });
+        if(p<1)requestAnimationFrame(outline);
+        else setTimeout(lockIn,140);                  // a short hold on the outline, then snap
+      })(c0);
     })();
+  }
+  /* 2) SUDDEN LOCK - in ONE frame the logos are on the header logos, with a flash */
+  function lockIn(){
+    var A=box(headA), T=box(headT);
+    put(flyA,A);put(flyT,T);
+    [imgA,imgT].forEach(function(im){im.style.transform='none';});
+    var snap=document.getElementById('snap');
+    if(snap){
+      var cx=(Math.min(A[0],T[0])+Math.max(A[0]+A[2],T[0]+T[2]))/2;
+      var cy=(A[1]+A[3]/2+T[1]+T[3]/2)/2, w=Math.max(A[2],T[2])*2.6;
+      snap.style.width=w+'px';snap.style.height=w+'px';
+      snap.style.left=cx+'px';snap.style.top=cy+'px';
+      snap.style.transform='translate(-50%,-50%)';
+      snap.style.animation='none';snap.offsetWidth;
+      snap.style.animation='snapflash .55s ease forwards';
+    }
+    headA.style.visibility='visible';headT.style.visibility='visible';
+    if(flyA&&flyA.parentNode)flyA.remove();
+    if(flyT&&flyT.parentNode)flyT.remove();
+    if(intro)intro.style.display='none';
+    /* 3) IMPACT - the header logos take the hit and settle */
+    var IM=260, i0=performance.now(), ih=hidT;
+    (function hit(now){
+      var p=Math.min((now-i0-(hidT-ih))/IM,1);
+      var e=1-Math.pow(1-p,3);
+      var sc=1.14-0.14*e, br=1+0.9*(1-e);
+      [headA,headT].forEach(function(im){
+        im.style.transform='scale('+sc+')';
+        im.style.filter='brightness('+br+') drop-shadow(0 0 '+(30*(1-e))+'px rgba(255,190,100,'+(0.8*(1-e))+'))';
+      });
+      if(p<1)requestAnimationFrame(hit);
+      else [headA,headT].forEach(function(im){im.style.transform='';im.style.filter='';});
+    })(i0);
   }
   function finish(){
     headA.style.visibility='visible';headT.style.visibility='visible';
@@ -1703,7 +1971,12 @@ async function rej(id){ if(!requireKeeper())return;
   // tap anywhere to skip
   intro.addEventListener('click',function(){window.skipIntro();});
   // hard safety: whatever happens, the intro is gone by 9s
-  setTimeout(function(){if(intro&&intro.style.display!=='none'){settled=true;finish();}},9000);
+  (function guard(){
+    setTimeout(function(){
+      if(document.hidden)return guard();            // he is not looking yet - keep waiting
+      if(intro&&intro.style.display!=='none'){settled=true;finish();}
+    },9000);
+  })();
   // if images fail to load at all, don't show a black screen
   var loaded=0;
   [imgA,imgT].forEach(function(im){
@@ -1721,7 +1994,15 @@ async function rej(id){ if(!requireKeeper())return;
     setTimeout(cb,1500); // never wait forever
   }
   var started=false;
-  ready(function(){if(started)return;started=true;t0=performance.now();requestAnimationFrame(anim);});
+  function begin(){
+    if(started)return;
+    if(document.hidden){                            // wait until he actually looks at the page
+      var on=function(){if(!document.hidden){document.removeEventListener('visibilitychange',on);begin();}};
+      return document.addEventListener('visibilitychange',on);
+    }
+    started=true;hidT=0;hid0=0;t0=performance.now();requestAnimationFrame(anim);
+  }
+  ready(begin);
   }catch(e){
     // any failure at all -> remove the intro, show the real page
     try{
