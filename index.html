@@ -558,9 +558,25 @@ function bootWhenReady(tries){
   ensureLocalDB();
   runBoot();
 }
+/* ===== LIVE REFRESH =====
+   A change made on ANY phone lands here. Only a screen that is safe to redraw is
+   redrawn. A man who is typing (return note, piece names, a count, a search) is
+   never thrown out of his screen and never loses what he typed.
+   TV = which technician screen is open:  'list' | 'status' | 'input'            */
+let TV=null, TVSIG='';
+function tvSig(tid){ return LOG.filter(m=>m.kind==='TOOL'&&m.tid===tid&&m.status!=='IN').map(m=>m.id+':'+m.status).join('|'); }
+function liveRefresh(){
+  if(ROLE==='store'){ if(curStoreView) curStoreView(); return; }
+  if(ROLE==='tech' && GATE){
+    if(TV==='list'){ if($('results')){ paintMine(); tsearch(); } else techToolList(); }
+    else if(TV==='status'){ if(tvSig(CUR)!==TVSIG) techToolList(); }
+  }
+}
+/* a write that did not reach the database must never pass silently */
+function saveErr(e){ try{console.warn('save failed',e);}catch(_){} toast('NOT SAVED \u2014 check the internet and try again'); }
 function runBoot(){
   if(!window.DB || !window.DB.ok) $('offlineBar').classList.remove('hidden');
-  window.DB.watch(rows=>{ LOG=rows; rebuildMTools(); if(ROLE==='store' && curStoreView) curStoreView(); if(ROLE==='tech' && GATE) techToolList(); });
+  window.DB.watch(rows=>{ LOG=rows; rebuildMTools(); liveRefresh(); });
   // ---- ROUTING ----
   // Store keeper secret link: ?s=1  -> he sees the role page (only he ever sees it)
   if(isStoreLink()){ STORE_LINK=true; showPick(); return; }
@@ -761,15 +777,35 @@ function passGate(){
 
 // after gate: take many tools
 function techToolList(){
+  TV='list';
   setTitle('Take tools','Scan or search — many tools OK');
   $('view').innerHTML=`
     <div class="alert green"><b>${esc(ME.name)}</b> · entry open · take as many tools as you need</div>
+    <div id="mine"></div>
     <div class="searchbar"><input class="big" id="q" placeholder="Scan or search tool…" oninput="tsearch()" autocomplete="off"></div>
     <button class="btn ghost" onclick="manualScreen('tech')" style="margin-bottom:10px">&#9998; Tool not in list — type it</button>
     <button class="btn ghost" onclick="scanTool()" style="margin-bottom:14px">▦ Scan tool QR</button>
     <div class="card" id="results" style="padding:6px 14px"></div>
     <button class="btn primary" onclick="techGate()" style="margin-top:14px">Done — leave</button>`;
+  paintMine();
   tsearch();
+}
+/* the tools THIS technician holds or is waiting for - always on top of his list,
+   so he never has to search for the tool he wants to return */
+function paintMine(){
+  const box=$('mine'); if(!box||!ME) return;
+  const ms=LOG.filter(m=>m.kind==='TOOL'&&m.status!=='IN'&&m.techId===ME.id);
+  if(!ms.length){ box.innerHTML=''; return; }
+  box.innerHTML=`<div class="card" style="padding:6px 14px;margin-bottom:12px"><h3 style="margin:12px 4px 4px">Your tools (${ms.length})</h3>`+ms.map(m=>{
+    const t=toolById(m.tid)||[m.tid,'','(tool not in the list)'];
+    let b,sub;
+    if(m.status==='REQ'){b='<span class="badge pend">Take · waiting</span>';sub='Waiting for the store keeper to hand it over';}
+    else if(m.status==='PENDING'){b='<span class="badge pend">Return · waiting</span>';sub='Waiting for the store keeper to receive it';}
+    else{b=isOverdue(m)?'<span class="badge out">Overdue</span>':'<span class="badge" style="background:var(--bluebg);color:var(--blue)">With you</span>';sub='Taken '+fmtTime(m.out)+' · tap to return';}
+    return `<div class="toolrow" onclick="openTool('${t[T_ID]}')"><div class="id">${t[T_ID]}</div>
+      <div class="nm">${esc(t[T_NAME]||'(no name)')} ${b}<small>${sub}</small>${m.items?`<small>Pieces: ${esc(m.items)}</small>`:''}${m.status==='OUT'&&m.rejBy?`<small style="color:var(--red);font-weight:700">${esc(m.rejBy)} did not accept your return — return it again</small>`:''}</div>
+      <div class="go">›</div></div>`;
+  }).join('')+`</div>`;
 }
 // ONE shared tool search, used by the technician list and the no-phone screen
 function searchTools(text){
@@ -819,6 +855,7 @@ function tsearch(){
   }).join('')+(q?`<div class="muted center" style="padding:8px">${list.length} result${list.length>1?'s':''}</div>`:(ALLTOOLS().length>10?'<div class="muted center" style="padding:10px">Showing first 10 · type to search all '+ALLTOOLS().length+'</div>':''));
 }
 function scanTool(){
+  TV='input';
   setTitle('Scan tool','Point at the tool QR');
   $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button><div id="reader"></div><button class="btn ghost" onclick="techToolList()">Cancel</button>`;
   startScanner(txt=>{const id=txt.trim();if(toolById(id)){stopScanner();openTool(id);}else toast('Unknown tool QR');});
@@ -834,12 +871,14 @@ function openTool(tid){CUR=tid;
     if(freePcs(tid)>0) return takeScreen(tid);
     return outWithScreen(tid,openMovesOf(tid)[0]);
   }
-  const st=toolStatus(tid);const m=st!=='IN'?openMove(tid):null;
+  // his OWN open move comes first, so he can always reach the tool he holds
+  const m=myMove(tid)||openMove(tid);const st=m?m.status:'IN';
   if(st==='IN'){takeScreen(tid);return;}
   if(st==='OUT'){(m.techId===ME.id)?returnScreen(tid,m):outWithScreen(tid,m);return;}
   if(st==='REQ'){reqScreen(tid,m);return;}
   pendingScreen(tid,m);}
 function reqScreen(tid,m){
+  TV='status';TVSIG=tvSig(tid);
   const t=toolById(tid);const mine=m.techId===ME.id;setTitle('Waiting hand over',t[T_ID]);
   $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button>
     <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t)}</div></div>
@@ -852,6 +891,7 @@ function reqScreen(tid,m){
 }
 async function cancelReq(id){await window.DB.update(id,{kind:'DELETED',status:'IN',tid:''});toast('Request cancelled');techToolList();}
 function outWithScreen(tid,m){
+  TV='status';TVSIG=tvSig(tid);
   const t=toolById(tid);setTitle('Tool is out',t[T_ID]);
   const over=isOverdue(m);
   $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button>
@@ -866,6 +906,7 @@ function outWithScreen(tid,m){
     <button class="btn ghost" onclick="techToolList()">Back to tools</button>`;
 }
 function pendingScreen(tid,m){
+  TV='status';TVSIG=tvSig(tid);
   const t=toolById(tid);setTitle('Tool returning',t[T_ID]);
   $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button>
     <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t)}</div></div>
@@ -874,6 +915,7 @@ function pendingScreen(tid,m){
 }
 
 function takeScreen(tid){
+  TV='input';
   const t=toolById(tid);setTitle('Take tool',t[T_ID]);
   const N=pcN(t), free=N?freePcs(tid):0;
   const isSet=t[T_TYPE]==='Set';const items=(t[T_SET]||'').split(',').map(s=>s.trim()).filter(Boolean);
@@ -940,9 +982,13 @@ function pkCheck(){
   pkArm(true,`${v.length} piece${v.length!==1?'s':''} ready.`);
 }
 
+let TAKE_AT=0, TAKE_KEY='';
 async function doTake(){
+  if(TAKE_KEY===ME.id+'|'+CUR && Date.now()-TAKE_AT<1500) return;   // a double tap must never make two requests
   const t=toolById(CUR);let items='',full=false,pcs=0;
   const N=pcN(t);
+  if(!N && toolStatus(CUR)!=='IN'){toast('This tool was just taken \u2014 it is not free');openTool(CUR);return;}
+  if(N && myMove(CUR)){toast('You already hold pieces of this set');openTool(CUR);return;}
   if(N){                                   // the hard rule lives here
     if(!PK.mode){toast('Choose full set or pieces');return;}
     const free=freePcs(CUR);
@@ -961,14 +1007,17 @@ async function doTake(){
   }else if(t[T_TYPE]==='Set'){
     items=[...document.querySelectorAll('.setrow input:checked')].map(b=>b.value).join(', ');
   }
-  await window.DB.add({kind:'TOOL',tid:CUR,tech:ME.name,techId:ME.id,sec:ME.sec,idBy:ID_METHOD,req:new Date().toISOString(),out:null,ret:null,cin:null,note:'',items,full,pcs,status:'REQ'});
+  TAKE_AT=Date.now(); TAKE_KEY=ME.id+'|'+CUR;
+  window.DB.add({kind:'TOOL',tid:CUR,tech:ME.name,techId:ME.id,sec:ME.sec,idBy:ID_METHOD,req:new Date().toISOString(),out:null,ret:null,cin:null,note:'',items,full,pcs,status:'REQ'}).catch(saveErr);
   toast('Sent to store keeper — '+CUR);techToolList();
 }
 let RG=null;
 function returnScreen(tid,m){
+  TV='input';
   const t=toolById(tid);RG=null;setTitle('Return tool',t[T_ID]);
   $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button>
     <div class="actban ret"><span class="ar">↓</span> You are returning a tool</div>
+    ${m.rejBy?`<div class="alert red"><b>${esc(m.rejBy)} did not accept your return.</b><br>Check the tool and return it again.</div>`:''}
     <div class="alert warn"><b>You have this tool</b> · taken ${fmtTime(m.out)}</div>
     <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'')}</div><div class="meta">${meta(t)}</div>${m.items?`<div class="kv" style="margin-top:10px"><span class="k">Pieces taken</span><span class="v">${esc(m.items)}</span></div>`:''}</div>
     <div class="card"><h3>Condition on return</h3><div class="grades" id="grades">
@@ -982,7 +1031,9 @@ function sg(g){RG=g;document.querySelectorAll('#grades .grade').forEach(b=>b.cla
 async function doReturn(mid){
   if(!RG){toast('Select condition');return;}const note=$('note')?$('note').value.trim():'';
   if(RG!=='A'&&!note){toast('Describe the problem');return;}
-  await window.DB.update(mid,{ret:new Date().toISOString(),cin:RG,note,status:'PENDING'});
+  const mv=LOG.find(x=>x.id===mid);
+  if(!mv||mv.status!=='OUT'){toast('This tool is already returned');techToolList();return;}
+  window.DB.update(mid,{ret:new Date().toISOString(),cin:RG,note,status:'PENDING'}).catch(saveErr);
   toast('Returned — waiting for store keeper');techToolList();
 }
 
@@ -995,6 +1046,7 @@ async function doReturn(mid){
 let MBACK='tech';
 function manualScreen(from){
   MBACK = from||'tech';
+  TV='input'; if(MBACK==='np') curStoreView=null;      // typing screen: never redrawn
   const back = MBACK==='np' ? 'npPickTool()' : 'techToolList()';
   setTitle('Tool not in list','Type it once — saved for everyone');
   $('view').innerHTML=`<button class="back" onclick="${back}">&lsaquo; Back</button>
@@ -1022,10 +1074,10 @@ async function doAddManual(){
   if(dup){ toast('Already in the list as '+dup[T_ID]);
            if(MBACK==='np') npChoose(dup[T_ID]); else openTool(dup[T_ID]); return; }
   const tid = nextMId();
-  await window.DB.add({kind:'MTOOL',tid,name,part,loc,qty:1,
+  window.DB.add({kind:'MTOOL',tid,name,part,loc,qty:1,
     by:(ROLE==='store'?(KEEPER?KEEPER.name:'Store keeper'):(ME?ME.name:'')),
     byId:(ROLE==='store'?(KEEPER?KEEPER.id:''):(ME?ME.id:'')),
-    at:new Date().toISOString(), out:null, status:'MTOOL'});
+    at:new Date().toISOString(), out:null, status:'MTOOL'}).catch(saveErr);
   if(!MTOOLS.some(t=>t[T_ID]===tid)) MTOOLS.push([tid,part,name,1,'Single',loc,'','','']);
   toast('Saved as '+tid);
   if(MBACK==='np') npChoose(tid); else openTool(tid);
@@ -1137,15 +1189,16 @@ function dash(){
   dtabs();rlist();
 }
 function stab(t){TAB=t;if(!$('tabs')){dash();}else{dtabs();rlist();window.scrollTo({top:0,behavior:'smooth'});}}
-function dtabs(){const c=counts();const today=LOG.filter(m=>m.kind==='TOOL'&&isToday(m.out)).length;
+function dtabs(){const c=counts();const today=histToday().length;
   const map={};toolMoves().forEach(m=>{if(m.status!=='IN')map[m.tid]=m;});
   const techN=new Set(Object.values(map).map(m=>m.techId)).size;
   // LIVE TOOLS first - it is the screen he opens most. The rest follow the day's work.
-  const defs=[['requests','TAKE — hand over',c.reqs],['pending','RETURN — receive',c.pending],['damaged','Damaged',c.damaged],['out','Out',c.out],['overdue','Overdue',c.overdue],['bytech','By technician',techN],['history','History',today],['entries','Entries',LOG.filter(m=>m.kind==='ENTRY'&&isToday(m.at)).length]];
+  const defs=[['requests','TAKE — hand over',c.reqs],['pending','RETURN — receive',c.pending],['received','Received today',recvToday().length],['damaged','Damaged',c.damaged],['out','Out',c.out],['overdue','Overdue',c.overdue],['bytech','By technician',techN],['history','History',today],['entries','Entries',LOG.filter(m=>m.kind==='ENTRY'&&isToday(m.at)).length]];
   $('tabs').innerHTML=defs.map(([k,l,n])=>`<button class="tab ${TAB===k?'on':''}" onclick="stab('${k}')">${l}<span class="c">${n}</span></button>`).join('');
 }
 function rlist(){
   const box=$('list');
+  if(TAB==='received')return rrecv(box);
   if(TAB==='history')return rhist(box);
   if(TAB==='entries')return rentries(box);
   if(TAB==='bytech')return rbytech(box);
@@ -1188,6 +1241,7 @@ function rlist(){
       ${m.outBy?`<div class="sub">Handed over by <b>${esc(m.outBy)}</b></div>`:''}
       ${m.inBy?`<div class="sub">Taken back by <b>${esc(m.inBy)}</b></div>`:''}
       ${m.status==='OUT'&&m.noPhone?`<div class="row2"><button class="btn green sm" onclick="npReturn('${m.id}')">Take back (no phone)</button></div>`:''}
+      ${m.status==='REQ'&&reqBlock(m)?`<div class="alert red" style="margin:8px 0 0"><b>${esc(reqBlock(m))}</b></div>`:''}
       ${m.status==='REQ'?`<div class="row2"><button class="btn red sm" onclick="reqRej('${m.id}')">Decline</button><button class="btn green sm" onclick="reqOk('${m.id}')">Accept — give tool</button></div>`:''}
       ${m.status==='PENDING'?`<div class="row2"><button class="btn red sm" onclick="rej('${m.id}')">Reject</button><button class="btn green sm" onclick="${pcNof(m.tid)?`cinPieces('${m.id}')`:`cin('${m.id}')`}">Accept — take back</button></div>`:''}</div>`;
   }).join('');
@@ -1289,18 +1343,31 @@ function paintAll(box){
 }
 
 let HF='today';
-function rhist(box){
-  let recs=toolMoves().slice();if(HF==='today')recs=recs.filter(m=>isToday(m.out));
-  const chips=`<div class="tabs" style="margin:2px 0 12px"><button class="tab ${HF==='today'?'on':''}" onclick="shf('today')">Today</button><button class="tab ${HF==='all'?'on':''}" onclick="shf('all')">All time</button></div>`;
-  if(!recs.length){box.innerHTML=chips+`<div class="empty"><div class="big">🕓</div>No tool movements${HF==='today'?' today':''}</div>`;return;}
-  box.innerHTML=chips+recs.map(m=>{const t=toolById(m.tid)||[m.tid,'','?'];let s,col;
-    if(m.status==='OUT'){s=isOverdue(m)?'Out · overdue':'Out';col='var(--red)';}else if(m.status==='PENDING'){s='Returned · waiting';col='var(--amber)';}else{s='Returned · received';col='var(--green)';}
+/* A tool's last movement: received > given > requested. History and "Received today"
+   both sort and filter on THIS, so a tool taken last week and received today is shown today. */
+const lastAt=m=>m.ret||m.out||m.req||'';
+function histToday(){ return toolMoves().filter(m=>isToday(m.out)||isToday(m.ret)||isToday(m.req)); }
+function recvToday(){ return toolMoves().filter(m=>m.status==='IN'&&isToday(m.ret)).sort((a,b)=>String(b.ret).localeCompare(String(a.ret))); }
+/* ONE history row - shared by History and Received today */
+function histRow(m){const t=toolById(m.tid)||[m.tid,'','?'];let s,col;
+    if(m.status==='REQ'){s='Requested · waiting';col='var(--amber)';}else if(m.status==='OUT'){s=isOverdue(m)?'Out · overdue':'Out';col='var(--red)';}else if(m.status==='PENDING'){s='Returned · waiting';col='var(--amber)';}else{s='Returned · received';col='var(--green)';}
     return `<div class="rec"><div class="hd"><span class="rid">${esc(m.tid)}</span><span class="rname">${esc(t[T_NAME]||'')}</span><span class="badge" style="background:#eef1f5;color:${col}">${s}</span></div>
       <div class="sub">${esc(m.tech)} · ${esc(m.sec)}</div>
       ${(m.outBy||m.inBy)?`<div class="sub">${m.outBy?'given by <b>'+esc(m.outBy)+'</b>':''}${m.outBy&&m.inBy?' · ':''}${m.inBy?'taken back by <b>'+esc(m.inBy)+'</b>':''}</div>`:''}
-      <div class="sub">OUT ${fmtTime(m.out)}${m.ret?' → IN '+fmtTime(m.ret):''}${m.cin?' · condition <b>'+m.cin+'</b>':''}</div>
-      ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}${m.note?`<div class="sub">Note: ${esc(m.note)}</div>`:''}</div>`;
-  }).join('')+`<div class="muted center" style="padding:10px">${recs.length} movement${recs.length>1?'s':''}${HF==='today'?' today':''}</div>`;
+      <div class="sub">${m.status==='REQ'?'Requested '+fmtTime(m.req):'OUT '+fmtTime(m.out)+(m.ret?' → IN '+fmtTime(m.ret):'')}${m.cin?' · condition <b>'+m.cin+'</b>':''}</div>
+      ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}${m.missPcs?`<div class="sub" style="color:var(--red);font-weight:800">NOT RETURNED: ${esc(m.missPcs)}</div>`:''}${m.note?`<div class="sub">Note: ${esc(m.note)}</div>`:''}</div>`;
+}
+function rhist(box){
+  const recs=(HF==='today'?histToday():toolMoves().slice()).sort((a,b)=>String(lastAt(b)).localeCompare(String(lastAt(a))));
+  const chips=`<div class="tabs" style="margin:2px 0 12px"><button class="tab ${HF==='today'?'on':''}" onclick="shf('today')">Today</button><button class="tab ${HF==='all'?'on':''}" onclick="shf('all')">All time</button></div>`;
+  if(!recs.length){box.innerHTML=chips+`<div class="empty"><div class="big">🕓</div>No tool movements${HF==='today'?' today':''}</div>`;return;}
+  box.innerHTML=chips+recs.map(histRow).join('')+`<div class="muted center" style="padding:10px">${recs.length} movement${recs.length>1?'s':''}${HF==='today'?' today':''}</div>`;
+}
+/* everything the store keeper took back today - newest first */
+function rrecv(box){
+  const recs=recvToday();
+  if(!recs.length){box.innerHTML=`<div class="empty"><div class="big">✓</div>Nothing received today</div>`;return;}
+  box.innerHTML=recs.map(histRow).join('')+`<div class="muted center" style="padding:10px">${recs.length} tool${recs.length>1?'s':''} received today</div>`;
 }
 function shf(f){HF=f;rlist();}
 /* --- By technician: list of techs with tools out --- */
@@ -1622,7 +1689,7 @@ let NP_TECH=null, NP_TOOL=null, NP_GRADE=null;
 
 function npStart(){
   NP_TECH=null; NP_TOOL=null;
-  curStoreView=npStart; setTitle('No phone','Issue a tool manually');
+  curStoreView=null; setTitle('No phone','Issue a tool manually');
   $('view').innerHTML=`<button class="back" onclick="dash()">&lsaquo; Dashboard</button>
     <div class="card">
       <h3>Technician ID number</h3>
@@ -1642,7 +1709,7 @@ function npFind(){
   npPickTool();
 }
 function npPickTool(){
-  curStoreView=npPickTool; setTitle('Pick the tool','Give to '+NP_TECH.name.split(' ')[0]);
+  curStoreView=npList; setTitle('Pick the tool','Give to '+NP_TECH.name.split(' ')[0]);
   $('view').innerHTML=`<button class="back" onclick="npStart()">&lsaquo; Change technician</button>
     <div class="idcard"><div class="nm">${esc(NP_TECH.name)}</div>
       <div class="meta">ID ${esc(NP_TECH.id)} &middot; ${esc(NP_TECH.sec)} — ${SEC_FULL[NP_TECH.sec]||''}</div>
@@ -1653,6 +1720,7 @@ function npPickTool(){
   npList();
 }
 function npList(){
+  if(!$('nplist')) return;
   const q=(($('npq')&&$('npq').value)||'').trim();
   const list=searchTools(q).slice(0,40);
   $('nplist').innerHTML = list.length ? list.map(t=>{
@@ -1668,7 +1736,7 @@ function npList(){
 function npChoose(tid){ NP_TOOL=tid; npConfirm(); }
 function npConfirm(){
   const t=toolById(NP_TOOL);
-  curStoreView=npConfirm; setTitle('Confirm','Issue without phone');
+  curStoreView=null; setTitle('Confirm','Issue without phone');
   $('view').innerHTML=`<button class="back" onclick="npPickTool()">&lsaquo; Change tool</button>
     <div class="actban take"><span class="ar">&uarr;</span> Giving a tool <span class="sm2">no phone</span></div>
     <div class="card detail"><div class="tid">${t[T_ID]}</div>
@@ -1691,12 +1759,12 @@ async function npIssue(){
   const now=new Date().toISOString();
   // the technician could not scan the cabin QR, so the store keeper records his entry here
   if(!LOG.some(e=>e.kind==='ENTRY'&&String(e.techId)===String(NP_TECH.id)&&isToday(e.at))){
-    await window.DB.add({kind:'ENTRY',techId:NP_TECH.id,tech:NP_TECH.name,sec:NP_TECH.sec,
-      idBy:'nophone',noPhone:true,byKeeper:true,at:now,out:now,status:'ENTRY',...kStamp()});
+    window.DB.add({kind:'ENTRY',techId:NP_TECH.id,tech:NP_TECH.name,sec:NP_TECH.sec,
+      idBy:'nophone',noPhone:true,byKeeper:true,at:now,out:now,status:'ENTRY',...kStamp()}).catch(saveErr);
   }
-  await window.DB.add({kind:'TOOL',tid:NP_TOOL,tech:NP_TECH.name,techId:NP_TECH.id,sec:NP_TECH.sec,
+  window.DB.add({kind:'TOOL',tid:NP_TOOL,tech:NP_TECH.name,techId:NP_TECH.id,sec:NP_TECH.sec,
     idBy:'nophone',noPhone:true,byKeeper:true,req:now,out:now,ret:null,cin:null,note:'',items:'',status:'OUT',
-    outBy:KEEPER.short,outById:KEEPER.id,outByName:KEEPER.name});
+    outBy:KEEPER.short,outById:KEEPER.id,outByName:KEEPER.name}).catch(saveErr);
   toast('Given to '+NP_TECH.name.split(' ')[0]+' by '+KEEPER.short+' — NO PHONE recorded');
   NP_TECH=null; NP_TOOL=null; dash();
 }
@@ -1704,7 +1772,7 @@ async function npIssue(){
 function npReturn(id){
   const m=LOG.find(x=>x.id===id); if(!m) return;
   const t=toolById(m.tid); NP_GRADE=null;
-  curStoreView=()=>npReturn(id); setTitle('Return for technician','No phone');
+  curStoreView=null; setTitle('Return for technician','No phone');
   $('view').innerHTML=`<button class="back" onclick="dash()">&lsaquo; Dashboard</button>
     <div class="actban ret"><span class="ar">&darr;</span> Taking a tool back <span class="sm2">no phone</span></div>
     <div class="card detail"><div class="tid">${t[T_ID]}</div>
@@ -1728,21 +1796,34 @@ async function npDoReturn(id){
   const note=$('npnote')?$('npnote').value.trim():'';
   if(NP_GRADE!=='A'&&!note){ toast('Describe the problem'); return; }
   if(!requireKeeper()) return;
-  await window.DB.update(id,{ret:new Date().toISOString(),cin:NP_GRADE,note,status:'IN',retByKeeper:true,
-    inBy:KEEPER.short,inById:KEEPER.id,inByName:KEEPER.name});
+  window.DB.update(id,{ret:new Date().toISOString(),cin:NP_GRADE,note,status:'IN',retByKeeper:true,
+    inBy:KEEPER.short,inById:KEEPER.id,inByName:KEEPER.name}).catch(saveErr);
   toast('Tool back in store — '+KEEPER.short); NP_GRADE=null; dash();
 }
 
 // Every one of these stamps the store keeper who did it — outBy / inBy.
 function switchKeeper(){ KEEPER=null; curStoreView=null; pinScreen(); }
+/* the store keeper's last check before a tool leaves: is it really free? */
+function reqBlock(m){
+  const N=pcNof(m.tid);
+  const others=LOG.filter(x=>x.kind==='TOOL'&&x.tid===m.tid&&x.id!==m.id&&(x.status==='OUT'||x.status==='PENDING'));
+  if(!N) return others.length?('Already out with '+others[0].tech+' \u2014 decline this request'):'';
+  const used=others.reduce((a,x)=>a+(x.full?N:(parseInt(x.pcs,10)||0)),0);
+  const want=m.full?N:(parseInt(m.pcs,10)||0);
+  return used+want>N?('Only '+Math.max(0,N-used)+' piece(s) left in store \u2014 decline this request'):'';
+}
 async function reqOk(id){ if(!requireKeeper())return;
+  const m=LOG.find(x=>x.id===id); if(!m||m.status!=='REQ'){toast('Already handled');return;}
+  const why=reqBlock(m); if(why){toast(why);return;}
   await window.DB.update(id,{status:'OUT',out:new Date().toISOString(),
     outBy:KEEPER.short,outById:KEEPER.id,outByName:KEEPER.name});
   toast('Handed over by '+KEEPER.short); }
 async function reqRej(id){ if(!requireKeeper())return;
+  const m=LOG.find(x=>x.id===id); if(!m||m.status!=='REQ'){toast('Already handled');return;}
   await window.DB.update(id,{kind:'DELETED',status:'IN',tid:'',rejBy:KEEPER.short,rejById:KEEPER.id});
   toast('Request declined'); }
 async function cin(id){ if(!requireKeeper())return;
+  const m=LOG.find(x=>x.id===id); if(!m||m.status!=='PENDING'){toast('Already handled');return;}
   await window.DB.update(id,{status:'IN',ret:new Date().toISOString(),
     inBy:KEEPER.short,inById:KEEPER.id,inByName:KEEPER.name});
   toast('Received by '+KEEPER.short); }
@@ -1754,7 +1835,7 @@ function cinPieces(mid){
   const m=LOG.find(x=>x.id===mid); if(!m)return;
   const t=toolById(m.tid), N=pcN(t);
   CP={mid,N,full:!!m.full,names:String(m.items||'').split(',').map(x=>x.trim()).filter(Boolean)};
-  curStoreView=()=>cinPieces(mid);
+  curStoreView=null;                     // counting screen: his ticks are never reset by another phone
   setTitle('Count the pieces',t[T_ID]);
   const body=CP.full
     ? `<div class="alert info"><b>Full set &mdash; ${N} pieces.</b> Count them before you accept.</div>
@@ -1805,6 +1886,7 @@ function cpDone(){
 }
 async function cpSave(){
   const m=LOG.find(x=>x.id===CP.mid)||{};
+  if(m.status!=='PENDING'){toast('Already handled');CP=null;dash();return;}
   const miss=CP.missNames||[];
   const patch={status:'IN',ret:new Date().toISOString(),
     inBy:KEEPER.short,inById:KEEPER.id,inByName:KEEPER.name,
@@ -1813,11 +1895,12 @@ async function cpSave(){
     patch.cin=(m.cin&&m.cin!=='A')?m.cin:'D';
     patch.note=(m.note?m.note+' \u00b7 ':'')+'Pieces NOT returned: '+miss.join(', ');
   }
-  await window.DB.update(CP.mid,patch);
+  window.DB.update(CP.mid,patch).catch(saveErr);
   toast(miss.length?miss.length+' piece(s) missing \u2014 recorded':'All pieces back \u2014 '+KEEPER.short);
   CP=null; dash();
 }
 async function rej(id){ if(!requireKeeper())return;
+  const m=LOG.find(x=>x.id===id); if(!m||m.status!=='PENDING'){toast('Already handled');return;}
   await window.DB.update(id,{status:'OUT',ret:null,cin:null,note:'',rejBy:KEEPER.short,rejById:KEEPER.id});
   toast('Sent back to technician'); }
 
