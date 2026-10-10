@@ -365,6 +365,33 @@ button.btn[disabled]{opacity:.42;pointer-events:none}
 .livebtn .lt2{opacity:.95}
 .idcard .meta{opacity:.9}
 .top .sub{opacity:.85}
+/* v21: reset screen + credits */
+.rs-cred{border-radius:18px;padding:18px 18px 8px;margin-bottom:16px;color:#fff;overflow:hidden;
+  background:radial-gradient(120% 90% at 100% 0%,#B3121F 0%,#5E0A12 38%,#121417 78%);box-shadow:0 10px 28px rgba(0,0,0,.28)}
+.rs-logos{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;min-height:30px}
+.rs-logos img{height:40px;filter:brightness(0) invert(1)} .rs-logos img.t{height:30px}
+.rs-ttl{font-size:18.5px;font-weight:900;letter-spacing:.05em;white-space:nowrap}
+.rs-sub{font-size:12px;color:#E7C98A;letter-spacing:.14em;font-weight:700;margin:3px 0 12px}
+.rs-c{padding:11px 0;border-top:1px solid rgba(255,255,255,.12)}
+.rs-c .k{font-size:10.5px;letter-spacing:.2em;color:#C9A55C;font-weight:800}
+.rs-c .v{font-size:19px;font-weight:800;color:#fff;margin-top:3px}
+.rs-c .v span{font-size:12.5px;font-weight:600;color:#C7CDD4}
+.rs-row{display:flex;gap:12px;align-items:flex-start;width:100%;padding:12px 2px;border:0;border-bottom:1px solid var(--line);
+  background:none;text-align:left;font:inherit;color:var(--ink);cursor:pointer}
+.rs-row:disabled{cursor:default;opacity:.55}
+.rs-box{flex:0 0 24px;height:24px;border-radius:6px;border:2px solid #B9C0C8;background:#fff;color:#fff;display:flex;
+  align-items:center;justify-content:center;font-weight:900;font-size:15px}
+.rs-box.on{border-color:var(--obsidian);background:var(--obsidian)}
+.rs-all .rs-box.on{border-color:var(--red);background:var(--red)}
+.rs-tx{flex:1}.rs-tx b{font-size:15px;color:var(--ink)}.rs-tx small{display:block;font-size:12.5px;color:#2A323D;margin-top:2px}
+.rs-n{font-family:var(--mono);font-weight:800;font-size:15px;color:var(--ink)}
+.rs-chips{display:flex;gap:8px;flex-wrap:wrap}
+.rs-chip{padding:10px 14px;border-radius:10px;font:inherit;font-weight:750;font-size:13px;border:1.5px solid #C9CFD6;background:#fff;color:var(--ink);cursor:pointer}
+.rs-chip.on{border-color:var(--obsidian);background:var(--obsidian);color:#fff}
+.rs-chip:disabled{opacity:.5;cursor:default}
+.rs-note{margin-top:12px;font-size:13px;color:#2A323D}
+.card.rs-all{border:1.5px solid #E6B9B3}.card.rs-all.on{border-color:var(--red);background:var(--redbg)!important}
+.rs-h{font-size:13.5px;color:var(--ink);padding:8px 0;border-bottom:1px solid var(--line)}
 /* v20: piece letters */
 .ubtns{display:flex;gap:10px;flex-wrap:wrap}
 .ubtn{flex:1;min-width:84px;padding:14px 8px 10px;border:2px solid var(--line2);border-radius:12px;background:#fff;
@@ -478,6 +505,7 @@ window.DB = {
       cb(rows,{cache});
     },err=>{ console.warn('database listener failed',err); if(window.dbState) window.dbState({ok:false}); });
   },
+  async del(id){ if(!FB_OK) return _localDel(id); await deleteDoc(doc(db,'log',id)); },
   async clear(){
     if(!FB_OK){ _localClear(); return; }
     const snap=await getDocs(collection(db,'log'));
@@ -494,6 +522,7 @@ function _localAdd(rec){const a=_lget();const id='L'+Date.now()+Math.random().to
 function _localUpdate(id,patch){const a=_lget();const i=a.findIndex(r=>r.id===id);if(i>=0){Object.assign(a[i],patch);_lset(a);}}
 function _localWatch(cb){_lcbs.push(cb);cb(_lget().slice().sort((x,y)=>(y.out||'').localeCompare(x.out||'')));}
 function _localClear(){_lset([]);}
+function _localDel(id){_lset(_lget().filter(r=>r.id!==id));}
 window.addEventListener('storage',()=>{_lcbs.forEach(cb=>cb(_lget()));});
 </script>
 <script>
@@ -579,7 +608,10 @@ const ALLTOOLS=()=>TOOLS.concat(MTOOLS);
 const isManual=id=>/^MT-/.test(String(id||''));
 const toolById=id=>ALLTOOLS().find(t=>t[T_ID]===id)||MTALL.find(t=>t[T_ID]===id);
 function nextMId(){ let n=0;
-  for(const m of LOG){ if(m.kind==='MTOOL'){ const k=parseInt(String(m.tid).replace(/\D/g,''),10)||0; if(k>n)n=k; } }
+  for(const m of LOG){
+    if(m.kind==='MTOOL'){ const k=parseInt(String(m.tid).replace(/\D/g,''),10)||0; if(k>n)n=k; }
+    else if(m.kind==='RESETLOG'){ const k=+m.mtMax||0; if(k>n)n=k; }
+    else { const x=/^MT-(\d+)/i.exec(String(m.tid||m.wasTid||'')); if(x){ const k=parseInt(x[1],10)||0; if(k>n)n=k; } } }
   return 'MT-'+String(n+1).padStart(3,'0'); }
 const $=id=>document.getElementById(id);
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -597,6 +629,7 @@ if(!window.DB){
     async add(rec){const a=_lget();const id='L'+Date.now()+Math.random().toString(36).slice(2,6);a.push({id,...rec});localStorage.setItem('toolcrib',JSON.stringify(a));_fire();return id;},
     async update(id,patch){const a=_lget();const i=a.findIndex(r=>r.id===id);if(i>=0){Object.assign(a[i],patch);localStorage.setItem('toolcrib',JSON.stringify(a));_fire();}},
     watch(cb){_cbs.push(cb);_fire();},
+    async del(id){localStorage.setItem('toolcrib',JSON.stringify(_lget().filter(r=>r.id!==id)));_fire();},
     async clear(){localStorage.setItem('toolcrib','[]');_fire();}
   };
   window.addEventListener('storage',_fire);
@@ -611,6 +644,7 @@ function ensureLocalDB(){
     async add(rec){const a=_lget();const id='L'+Date.now()+Math.random().toString(36).slice(2,6);a.push({id,...rec});localStorage.setItem('toolcrib',JSON.stringify(a));_fire();return id;},
     async update(id,patch){const a=_lget();const i=a.findIndex(r=>r.id===id);if(i>=0){Object.assign(a[i],patch);localStorage.setItem('toolcrib',JSON.stringify(a));_fire();}},
     watch(cb){_cbs.push(cb);_fire();},
+    async del(id){localStorage.setItem('toolcrib',JSON.stringify(_lget().filter(r=>r.id!==id)));_fire();},
     async clear(){localStorage.setItem('toolcrib','[]');_fire();}
   };
   window.addEventListener('storage',_fire);
@@ -2022,37 +2056,189 @@ function secretTap(){
   secretTimer=setTimeout(()=>{secretCount=0;},2500);
   if(secretCount>=5){secretCount=0;resetScreen();}
 }
-function resetScreen(){
-  curStoreView=null;setTitle('Reset system','Danger — clears all records');
-  const n=LOG.length;
-  $('view').innerHTML=`<button class="back" onclick="dash()">‹ Dashboard</button>
-    <div class="alert red"><b>This clears every record.</b><br>All ${n} record${n!==1?'s':''} — tool movements, returns, damage notes and cabin entries — will be permanently deleted. The ${TOOLS.length} tools and ${TECHS.length} technicians stay.</div>
-    <div class="alert warn">Download the reports you need before doing this. Deleted records cannot be recovered.</div>
-    <div class="card"><h3>Confirm</h3>
-      <label class="f">Type RESET to continue</label>
-      <input class="big" id="rword" placeholder="RESET" autocomplete="off" autocapitalize="characters" oninput="rcheck()">
-      <button class="btn red" id="rbtn" disabled onclick="doReset()">Delete all records</button>
-    </div>
-    <button class="btn ghost" onclick="dash()">Cancel</button>`;
+/* ===== RESET SCREEN (v21) — owner area =====
+   Opened by 5 taps on the faint dot at the bottom of the store keeper dashboard.
+   - Clears ONLY what is ticked, and only records OLDER than the chosen month.
+   - NEVER clears: a tool that is out / asked for / waiting, an open damage report,
+     the tool list, the technician list, the keeper PINs, or the reset history.
+   - The keeper must download the full backup (CSV, every record) FIRST. The Clear button
+     stays locked until a backup of the CURRENT data was made on this phone.
+   - The keeper must type his own PIN again and the word RESET.
+   - Every reset is written down (kind RESETLOG). That record is never cleared.
+   "EVERYTHING" is a separate red option for a brand-new start (word: RESET ALL). */
+const CREDITS=[['FOUNDER','Mohamed Farshad',''],['SYSTEM CREATOR','FAH MEDIA',''],
+               ['IDEA BY','Mr. Ibrahim','Manager'],['DEDICATED TO','Mr. Ibrahim','Manager']];
+const RS_CATS=[
+  {k:'entry',t:'Cabin visits',s:'Who came to the cabin and when'},
+  {k:'ret',  t:'Returned tool history',s:'Tools already back in the store'},
+  {k:'decl', t:'Declined / cancelled requests',s:'Requests that never went out'},
+  {k:'dmg',  t:'Closed damage reports',s:'Only the ones already “Replaced with new”'},
+  {k:'mt',   t:'Hand-typed tools (MT-)',s:'Only when nothing is out and no record is left on it'}];
+const RS_WORD={entry:'cabin visits',ret:'returned',decl:'declined',dmg:'closed damage',mt:'hand-typed tools'};
+let RS={pick:{entry:true,ret:true,decl:false,dmg:false,mt:false},age:'3m',all:false,busy:false,done:null,bk:null};
+/* which box a record belongs to - null = never cleared by the ticks */
+function rsCat(m){
+  if(m.kind==='ENTRY')   return 'entry';
+  if(m.kind==='DELETED') return 'decl';
+  if(m.kind==='MTOOL')   return 'mt';
+  if(m.kind==='TOOL' && m.status==='IN') return (m.cin && m.cin!=='A') ? (m.dmgFixed?'dmg':null) : 'ret';
+  return null;            // out / asked / waiting tool, open damage, reset history, anything unknown
 }
+/* a record is as young as its NEWEST date (a damage closed yesterday is young) */
+function rsWhen(m){
+  let best=NaN; [m.at,m.req,m.out,m.ret,m.recvAt,m.rejAt,m.dmgFixedAt].forEach(v=>{ const t=v?Date.parse(v):NaN; if(!isNaN(t)&&!(t<=best)) best=t; });
+  return best;                                   // NaN = no readable date = treated as old
+}
+/* keep this month + the last 1 or 3 full months */
+function rsKeepFrom(age){ if(age==='all') return null; const d=new Date(); return new Date(d.getFullYear(),d.getMonth()-(age==='1m'?1:3),1); }
+function rsPlan(){
+  const keep=rsKeepFrom(RS.age), kt=keep?keep.getTime():null;
+  const old=m=>{ if(kt===null) return true; const t=rsWhen(m); return isNaN(t)?true:t<kt; };
+  const n={entry:0,ret:0,decl:0,dmg:0,mt:0}, dn={entry:0,ret:0,decl:0,dmg:0,mt:0}, del=new Set();
+  if(RS.all){ LOG.forEach(m=>{ if(m.kind!=='RESETLOG') del.add(m.id); }); return {del,n,dn,keep}; }
+  const mts=[];
+  LOG.forEach(m=>{ const c=rsCat(m); if(!c) return; if(c==='mt'){ mts.push(m); return; }
+    if(old(m)){ n[c]++; if(RS.pick[c]){ del.add(m.id); dn[c]++; } } });
+  const twin={}; mts.forEach(t=>{ twin[t.tid]=(twin[t.tid]||0)+1; });
+  mts.forEach(t=>{ if(!old(t) || twin[t.tid]>1) return;                       // two typed with one number: never touched
+    if(LOG.some(m=>m.id!==t.id && m.kind!=='MTOOL' && (m.tid===t.tid||m.wasTid===t.tid) && !del.has(m.id))) return; // a record still names it
+    n.mt++; if(RS.pick.mt){ del.add(t.id); dn.mt++; } });
+  return {del,n,dn,keep};
+}
+const rsDate=d=>d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+function resetScreen(){
+  if(!requireKeeper()) return;
+  curStoreView=null; setTitle('Reset system','Owner area — choose what to clear');
+  if(!RS.busy){ RS.done=null; RS.all=false; RS.bk=null; } rsDraw(true);
+}
+function rsDraw(top){
+  const pv=$('rpin')?$('rpin').value:'', wv=$('rword')?$('rword').value:'';
+  const P=rsPlan(), total=P.del.size;
+  const A=($('hLogoA')||{}).src||'', T=($('hLogoT')||{}).src||'';
+  const open=LOG.filter(m=>m.kind==='TOOL'&&m.status!=='IN').length, dOpen=damageOpen().length;
+  const hist=LOG.filter(m=>m.kind==='RESETLOG').sort((a,b)=>String(b.out||'').localeCompare(String(a.out||'')));
+  const word=RS.all?'RESET ALL':'RESET';
+  const box=(on,dis)=>`<span class="rs-box${on?' on':''}${dis?' dis':''}">${on?'✓':''}</span>`;
+  const row=c=>{ const on=RS.all||RS.pick[c.k];
+    return `<button type="button" class="rs-row" id="rs_${c.k}" ${RS.all?'disabled':''} onclick="rsTick('${c.k}')">${box(on,RS.all)}
+      <span class="rs-tx"><b>${c.t}</b><small>${c.s}</small></span><span class="rs-n">${RS.all?'—':P.n[c.k]}</span></button>`; };
+  const chip=(k,t)=>`<button type="button" class="rs-chip${RS.age===k?' on':''}" id="rsa_${k}" ${RS.all?'disabled':''} onclick="rsAge('${k}')">${t}</button>`;
+  const ageNote=RS.all?'<div class="rs-note">Not used — EVERYTHING is ticked.</div>'
+    : P.keep?`<div class="rs-note">Keeps everything from <b>${rsDate(P.keep)}</b> onward — this month’s report is never touched.</div>`
+    : `<div class="alert red" style="margin:12px 0 0"><b>All time also clears this month.</b> This month’s report will lose these records (the backup file keeps them).</div>`;
+  const done=RS.done?(RS.done.fail||RS.done.wait
+      ? `<div class="alert red"><b>${RS.done.ok} cleared${RS.done.fail?' · '+RS.done.fail+' failed':''}${RS.done.wait?' · '+RS.done.wait+' still waiting for the internet':''}.</b><br>Keep this page open and check the internet. Waiting ones finish by themselves when the line is back; failed ones: run the reset again. Backup made before: ${esc(RS.done.file)}</div>`
+      : `<div class="alert green"><b>Done — ${RS.done.ok} record${RS.done.ok!==1?'s':''} cleared.</b><br>Backup made before clearing: <b>${esc(RS.done.file)}</b></div>`):'';
+  const hrow=h=>{ const parts=Object.keys(RS_WORD).filter(k=>+h['n_'+k]).map(k=>(+h['n_'+k])+' '+(k==='entry'&&+h['n_'+k]===1?'cabin visit':RS_WORD[k]));
+    const what=h.mode==='everything'?'EVERYTHING ('+(+h.cleared||0)+')':(parts.join(' + ')||'0');
+    const age=h.mode==='everything'?'':h.keepFrom?' · kept from '+rsDate(new Date(h.keepFrom)):' · all time';
+    return `<div class="rs-h"><b>${esc(new Date(h.out).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}))}</b> · ${esc(h.by||'')} · ${esc(what)}${esc(age)}${+h.failed?' · <span style="color:var(--red)">'+(+h.failed)+' failed</span>':''}${+h.waiting?' · '+(+h.waiting)+' were waiting for the internet':''}</div>`; };
+  $('view').innerHTML=`<button class="back" onclick="dash()">‹ Dashboard</button>
+  <div class="rs-cred">
+    <div class="rs-logos">${A?`<img src="${A}" alt="Alsayer">`:''}${T?`<img src="${T}" alt="Toyota" class="t">`:''}</div>
+    <div class="rs-ttl">TOYOTA TOOL MANAGEMENT</div>
+    <div class="rs-sub">AHMADI TOOL STORE · SINCE 2026</div>
+    ${CREDITS.map(c=>`<div class="rs-c"><div class="k">${c[0]}</div><div class="v">${c[1]}${c[2]?`<span> · ${c[2]}</span>`:''}</div></div>`).join('')}
+  </div>
+  ${done}
+  <div class="card"><h3>1 · What to clear</h3>${RS_CATS.map(row).join('')}</div>
+  <div class="card"><h3>2 · How old</h3>
+    <div class="rs-chips">${chip('1m','Older than 1 month')}${chip('3m','Older than 3 months')}${chip('all','All time')}</div>${ageNote}</div>
+  <div class="alert green"><b>Always safe — never cleared:</b><br>${open} tool${open!==1?'s':''} out, asked or waiting · ${dOpen} open damage report${dOpen!==1?'s':''} · ${TOOLS.length} tools · ${TECHS.length} technicians · keeper PINs · reset history</div>
+  <div class="card"><h3>3 · Confirm</h3>
+    ${RS.bk?`<div class="alert green" style="margin:0 0 12px"><b>✓ Backup made:</b> ${esc(RS.bk.file)}<br>Check the file is in your Downloads before you clear.</div>`
+      :`<div class="alert info" style="margin:0 0 12px"><b>Step A — backup first.</b> Download the full report (CSV, every record) and check the file is in your Downloads. Clear stays locked until you do.</div>`}
+    <button class="btn ${RS.bk?'ghost':'primary'}" id="rbk" onclick="rsBk()" style="margin-bottom:14px">${RS.bk?'Download the backup again':'⬇ Download backup ('+LOG.length+' records)'}</button>
+    <label class="f">Your keeper PIN (${esc(KEEPER?KEEPER.short:'')})</label>
+    <input class="big" id="rpin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••" oninput="rcheck()" style="margin-bottom:12px">
+    <label class="f">Type ${word}</label>
+    <input class="big" id="rword" placeholder="${word}" autocomplete="off" autocapitalize="characters" oninput="rcheck()" style="margin-bottom:14px">
+    <button class="btn red" id="rbtn" disabled onclick="doReset()">${total?'Clear '+total+' record'+(total!==1?'s':''):'Nothing to clear'}</button>
+  </div>
+  <div class="card rs-all${RS.all?' on':''}"><h3 style="color:var(--red)">Full clean start</h3>
+    <button type="button" class="rs-row" id="rs_all" onclick="rsAll()">${box(RS.all,false)}
+      <span class="rs-tx"><b>EVERYTHING — also tools out now</b><small>Only for a brand-new start. Backup is still needed first. Word: RESET ALL</small></span>
+      <span class="rs-n">${LOG.filter(m=>m.kind!=='RESETLOG').length}</span></button></div>
+  <div class="card"><h3>Reset history</h3>
+    ${hist.length?hist.slice(0,20).map(hrow).join(''):'<div class="rs-note" style="margin:0">No reset yet. Every reset is written here and stays: who, when, what, how many.</div>'}</div>
+  <button class="btn ghost" onclick="dash()">Cancel</button>`;
+  if($('rpin')) $('rpin').value=pv; if($('rword')) $('rword').value=wv;
+  rcheck(); if(top) window.scrollTo(0,0);
+}
+function rsTick(k){ if(RS.busy||RS.all) return; RS.pick[k]=!RS.pick[k]; RS.done=null; rsDraw(); }
+function rsAge(k){ if(RS.busy||RS.all) return; RS.age=k; RS.done=null; rsDraw(); }
+function rsAll(){ if(RS.busy) return; RS.all=!RS.all; RS.done=null; if($('rword')) $('rword').value=''; rsDraw(); }
 function rcheck(){
-  const v=($('rword').value||'').trim().toUpperCase();
-  $('rbtn').disabled=(v!=='RESET');
+  const b=$('rbtn'); if(!b) return;
+  const w=(($('rword')||{}).value||'').trim().toUpperCase().replace(/\s+/g,' ');
+  const p=(($('rpin')||{}).value||'').trim();
+  b.disabled = RS.busy || !RS.bk || !rsPlan().del.size || w!==(RS.all?'RESET ALL':'RESET') || !/^\d{4}$/.test(p);
+}
+/* full backup: every record in the database, every field */
+function rsBackup(){
+  const first=['kind','status','id','tid','unit','tech','techId','sec','req','out','ret','recvAt','at','rejAt','cin','note','outBy','inBy','keeper','dmgFixed','dmgFixedBy'];
+  const keys=new Set(); LOG.forEach(m=>Object.keys(m).forEach(k=>keys.add(k)));
+  const cols=first.filter(k=>keys.has(k)).concat([...keys].filter(k=>!first.includes(k)).sort());
+  const cell=v=>{ if(v==null) return ''; let s=typeof v==='object'?JSON.stringify(v):String(v);
+    if(/^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) s="'"+s; return '"'+s.replace(/"/g,'""')+'"'; };
+  const rows=[cols.map(cell).join(',')].concat(LOG.map(m=>cols.map(k=>cell(m[k])).join(',')));
+  const d=new Date(), p=x=>String(x).padStart(2,'0');
+  const name='TOOL_BACKUP_before_reset_'+d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'_'+p(d.getHours())+p(d.getMinutes())+'.csv';
+  const blob=new Blob(['﻿'+rows.join('\r\n')],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},4000);
+  return name;
+}
+function rsBk(){
+  if(RS.busy) return;
+  try{ const file=rsBackup(); RS.bk={file,sig:new Map(LOG.map(m=>[m.id,JSON.stringify(m)]))}; /* what each record looked like in the file */ toast('Backup downloaded — check your Downloads'); }
+  catch(e){ RS.bk=null; toast('Backup failed — try again or use the PC'); }
+  rsDraw();
 }
 async function doReset(){
-  const v=($('rword').value||'').trim().toUpperCase();
-  if(v!=='RESET'){toast('Type RESET to confirm');return;}
-  $('rbtn').disabled=true;
-  try{
-    if(window.DB.clear){await window.DB.clear();}
-    else{
-      // fallback: mark every record deleted so it disappears everywhere
-      for(const m of LOG.slice()){await window.DB.update(m.id,{kind:'DELETED',status:'IN',tid:''});}
-    }
-    LOG=[];
-    toast('All records cleared');
-    setTimeout(dash,400);
-  }catch(e){toast('Reset failed — try again');$('rbtn').disabled=false;}
+  if(RS.busy) return;
+  if(!requireKeeper()) return;
+  const K0=KEEPER;
+  const left=pinLockLeft(); if(left){ toast('Too many wrong PINs — wait '+left+' s'); return; }
+  const word=RS.all?'RESET ALL':'RESET';
+  const w=($('rword').value||'').trim().toUpperCase().replace(/\s+/g,' ');
+  if(w!==word){ toast('Type '+word+' to confirm'); return; }
+  const pin=($('rpin').value||'').trim();
+  if(pinHash(K0.id,pin)!==K0.ph){
+    $('rpin').value=''; rcheck(); const bad=pinBad()+1; pinBad(bad);
+    if(bad>=5){ pinBad(0); try{localStorage.setItem('pinlock',String(Date.now()+60000));}catch(e){} toast('Too many wrong PINs — locked for 1 minute'); }
+    else toast('Wrong PIN — type your own keeper PIN');
+    return; }
+  pinBad(0);
+  if(window.DB.ok && (!LOADED || navigator.onLine===false || !$('offlineBar').classList.contains('hidden'))){
+    toast('Reset needs a live connection — check the internet'); return; }
+  if(typeof window.DB.del!=='function'){ toast('Reset is not possible on this copy'); return; }
+  const P=rsPlan(), ids=[...P.del];
+  if(!ids.length){ toast('Nothing to clear'); return; }
+  if(!RS.bk){ toast('Download the backup first'); return; }
+  const now0=new Map(LOG.map(m=>[m.id,JSON.stringify(m)]));
+  if(ids.some(id=>RS.bk.sig.get(id)!==now0.get(id))){ RS.bk=null; rsDraw(); toast('Records changed since the backup — download the backup again'); return; }  // new or changed
+  const file=RS.bk.file;
+  // the highest MT- number being cleared is remembered, so a new hand-typed tool never reuses it
+  const mtMax=Math.max(0,...LOG.filter(m=>P.del.has(m.id)).map(m=>parseInt((/^MT-(\d+)/i.exec(String(m.tid||m.wasTid||''))||[])[1],10)||0));
+  RS.busy=true; const btn=$('rbtn'); btn.disabled=true; btn.textContent='Clearing… 0 / '+ids.length;
+  let ok=0, fail=0, wait=0;
+  const one=id=>Promise.race([window.DB.del(id).then(()=>'ok',()=>'fail'),new Promise(r=>setTimeout(()=>r('wait'),20000))]);
+  for(let i=0;i<ids.length;i+=20){
+    const r=await Promise.all(ids.slice(i,i+20).map(one));
+    r.forEach(x=>{ if(x==='ok')ok++; else if(x==='fail')fail++; else wait++; });
+    if(btn.isConnected) btn.textContent='Clearing\u2026 '+(ok+fail+wait)+' / '+ids.length;
+  }
+  const now=new Date().toISOString();
+  const rec={kind:'RESETLOG',status:'RESETLOG',out:now,at:now,by:K0.short,byId:K0.id,byName:K0.name,
+    mode:RS.all?'everything':RS.age,keepFrom:P.keep?P.keep.toISOString():'',cleared:ok,failed:fail,waiting:wait,backup:file,
+    mtMax};
+  Object.keys(RS_WORD).forEach(k=>{ rec['n_'+k]=RS.all?0:P.dn[k]; });
+  window.DB.add(rec).catch(saveErr);
+  RS.busy=false; RS.done={ok,fail,wait,file}; RS.all=false; RS.bk=null;
+  if($('rpin')) $('rpin').value=''; if($('rword')) $('rword').value='';
+  toast(fail||wait?'Some records were not cleared':'Done — '+ok+' cleared');
+  setTimeout(()=>{ if($('rbtn')) rsDraw(true); },500);
 }
 
 /* ===== NO PHONE — store keeper issues and returns on behalf of a technician ===== */
