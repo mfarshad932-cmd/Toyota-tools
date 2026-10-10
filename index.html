@@ -365,6 +365,15 @@ button.btn[disabled]{opacity:.42;pointer-events:none}
 .livebtn .lt2{opacity:.95}
 .idcard .meta{opacity:.9}
 .top .sub{opacity:.85}
+/* v20: piece letters */
+.ubtns{display:flex;gap:10px;flex-wrap:wrap}
+.ubtn{flex:1;min-width:84px;padding:14px 8px 10px;border:2px solid var(--line2);border-radius:12px;background:#fff;
+  font-family:var(--mono);font-size:26px;font-weight:800;color:var(--ink);line-height:1}
+.ubtn small{display:block;font-family:var(--sans);font-size:11px;font-weight:700;margin-top:6px;letter-spacing:.04em}
+.ubtn.on{background:var(--obsidian);color:#fff;border-color:var(--obsidian)}
+.ubtn:disabled{opacity:.35}
+.unitline{display:inline-block;margin:7px 0 2px;padding:4px 10px;border-radius:7px;background:var(--obsidian);color:#fff;
+  font-family:var(--mono);font-weight:700;font-size:12.5px;letter-spacing:.03em}
 /* v19: technician identity is always strong */
 .tn{font-family:var(--sans);font-weight:700;color:var(--ink);font-size:13.5px;letter-spacing:-.005em}
 .ttrow{cursor:pointer;padding:15px 6px}
@@ -648,6 +657,7 @@ function cleanRow(r){
   if(r.rejCin!=null && !/^[ABCD]$/.test(String(r.rejCin))) r.rejCin=null;
   if(r.tid!=null && !/^[\w .\-\/]{0,24}$/.test(String(r.tid))) r.tid='';
   if(r.techId!=null && !/^[\w\-]{1,20}$/.test(String(r.techId))) r.techId='';
+  if(r.unit!=null && !/^[A-F]$/.test(String(r.unit))) r.unit=null;
   if(r.wasTid!=null && !/^[\w .\-\/]{0,24}$/.test(String(r.wasTid))) r.wasTid='';
   return r;
 }
@@ -892,12 +902,14 @@ function paintMine(){
     else if(m.status==='PENDING'){b='<span class="badge pend">Return · waiting</span>';sub='Waiting for the store keeper to receive it';}
     else{b=isOverdue(m)?'<span class="badge out">Overdue</span>':'<span class="badge" style="background:var(--bluebg);color:var(--blue)">With you</span>';sub='Taken '+fmtTime(m.out)+' · tap to return';}
     return `<div class="toolrow" onclick="openTool('${t[T_ID]}')"><div class="id">${t[T_ID]}</div>
-      <div class="nm">${esc(t[T_NAME]||'(no name)')} ${b}<small>${sub}</small>${m.items?`<small>Pieces: ${esc(m.items)}</small>`:''}${m.status==='OUT'&&m.rejBy?`<small style="color:var(--red);font-weight:700">${esc(m.rejBy)} did not accept your return — return it again</small>`:''}</div>
+      <div class="nm">${esc(t[T_NAME]||'(no name)')} ${b}${m.unit?`<small style="color:var(--ink);font-weight:800">Piece ${m.unit} \u00b7 sticker ${esc(m.tid)}-${m.unit}</small>`:''}<small>${sub}</small>${m.items?`<small>Pieces: ${esc(m.items)}</small>`:''}${m.status==='OUT'&&m.rejBy?`<small style="color:var(--red);font-weight:700">${esc(m.rejBy)} did not accept your return — return it again</small>`:''}</div>
       <div class="go">›</div></div>`;
   }).join('')+`</div>`;
 }
 // ONE shared tool search, used by the technician list and the no-phone screen
 function searchTools(text){
+  const pq=(typeof parseToolQR==='function')?parseToolQR(text):null;
+  if(pq&&pq.unit){ const t0=toolById(pq.tid); if(t0) return [t0]; }
   const raw=String(text||'').trim().toLowerCase();
   const q=raw.replace(/[-\s]/g,'');            // "tl2" or "tl-2" both work
   const SRC=ALLTOOLS();
@@ -952,12 +964,12 @@ function scanTool(){
   TV='input';
   setTitle('Scan tool','Point at the tool QR');
   $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button><div id="reader"></div><button class="btn ghost" onclick="techToolList()">Cancel</button>`;
-  startScanner(txt=>{const id=txt.trim();if(!LOADED){toast('Loading the tool data \u2014 one moment');return;}if(toolById(id)){stopScanner();openTool(id);}else toast('Unknown tool QR');});
+  startScanner(txt=>{if(!LOADED){toast('Loading the tool data \u2014 one moment');return;}const q=parseToolQR(txt);if(q){stopScanner();openTool(q.tid,q.unit);}else toast('Unknown tool QR');});
 }
 let CUR=null;
-function openTool(tid){
+function openTool(tid,unit){
   if(!LOADED){toast('Loading the tool data \u2014 one moment');return;}
-  CUR=tid;
+  CUR=tid; CUR_U=unit||null;
   const N=pcNof(tid);
   if(N){                                   // piece tool
     const mine=myMove(tid);
@@ -968,6 +980,18 @@ function openTool(tid){
     return outWithScreen(tid,openMovesOf(tid)[0]);
   }
   // his OWN open move comes first, so he can always reach the tool he holds
+  if(unitsOf(tid)>1){                      // a tool with pieces A / B / C
+    const mine=myMove(tid);
+    if(mine){
+      if(unit&&mine.unit&&unit!==mine.unit){ toast((mine.status==='REQ'?'You asked for ':'You have ')+tid+'-'+mine.unit+' \u2014 this sticker is '+tid+'-'+unit); CUR_U=null; }
+      if(mine.status==='OUT') return returnScreen(tid,mine);
+      if(mine.status==='REQ') return reqScreen(tid,mine);
+      return pendingScreen(tid,mine);
+    }
+    if(unit){ const held=openMovesOf(tid).find(x=>x.unit===unit); if(held) return outWithScreen(tid,held); }
+    if(unitsFree(tid)>0) return takeScreen(tid);
+    return outWithScreen(tid,openMovesOf(tid)[0]);
+  }
   const m=myMove(tid)||(unitsFree(tid)>0?null:openMove(tid));const st=m?m.status:'IN';
   if(st==='IN'){takeScreen(tid);return;}
   if(st==='OUT'){(m.techId===ME.id)?returnScreen(tid,m):outWithScreen(tid,m);return;}
@@ -977,7 +1001,7 @@ function reqScreen(tid,m){
   TV='status';TVSIG=tvSig(tid);
   const t=toolOr(tid);const mine=m.techId===ME.id;setTitle('Waiting hand over',t[T_ID]);
   $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button>
-    <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t)}</div></div>
+    <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t)}</div></div>${unitLine(m)}
     <div class="alert warn">${mine?'<b>You requested this tool.</b><br>The store keeper must hand it over and accept before it is yours.':'<b>Requested by '+esc(m.tech)+'.</b><br>Waiting for the store keeper to hand it over.'}</div>
     <div class="card"><div class="kv"><span class="k">Requested by</span><span class="v">${esc(m.tech)}</span></div>
       <div class="kv"><span class="k">Section</span><span class="v">${esc(m.sec)}</span></div>
@@ -994,7 +1018,7 @@ function outWithScreen(tid,m){
   const t=toolOr(tid);setTitle('Tool is out',t[T_ID]);
   const over=isOverdue(m);
   $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button>
-    <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t)}</div></div>
+    <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t)}</div></div>${unitLine(m)}
     <div class="alert ${over?'red':'warn'}"><b>${m.status==='REQ'?'This tool is already requested.':m.status==='PENDING'?'This tool is coming back.':'This tool is already out.'}</b><br>You cannot take it until it is back in store.</div>
     <div class="card"><div class="kv"><span class="k">Taken by</span><span class="v">${esc(m.tech)}</span></div>
       <div class="kv"><span class="k">Section</span><span class="v">${esc(m.sec)} — ${SEC_FULL[m.sec]||''}</span></div>
@@ -1008,7 +1032,7 @@ function pendingScreen(tid,m){
   TV='status';TVSIG=tvSig(tid);
   const t=toolOr(tid);setTitle('Tool returning',t[T_ID]);
   $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button>
-    <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t)}</div></div>
+    <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t)}</div></div>${unitLine(m)}
     <div class="alert info"><b>Just returned by ${esc(m.tech)}.</b><br>Waiting for the store keeper to confirm. Available again after that.</div>
     <button class="btn ghost" onclick="techToolList()">Back to tools</button>`;
 }
@@ -1022,8 +1046,8 @@ function takeScreen(tid){
   const head=`<button class="back" onclick="techToolList()">\u2039 Back</button>
     <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t)}</div></div>
     <div class="card"><div class="kv"><span class="k">Taken by</span><span class="v">${esc(ME.name)}</span></div><div class="kv"><span class="k">Section \u00b7 ID</span><span class="v">${esc(ME.sec)} \u00b7 ${esc(ME.id)}</span></div><div class="kv"><span class="k">Time</span><span class="v">now (auto)</span></div></div>`;
-  const dmg0=dmgOf(tid);
-  const head2=dmg0?`<div class="alert red"><b>Open damage report: ${esc(GRADE_WORD[dmg0.cin]||'Damaged')}.</b><br>${dmg0.note?esc(dmg0.note)+'<br>':''}Check it with the store keeper before you take it.</div>`:'';
+  const dmg0=dmgOf(tid);   // a damage report on any piece of this number is shown
+  const head2=dmg0?`<div class="alert red"><b>Open damage report${dmg0.unit?' on piece '+dmg0.unit:''}: ${esc(GRADE_WORD[dmg0.cin]||'Damaged')}.</b><br>${dmg0.note?esc(dmg0.note)+'<br>':''}Check it with the store keeper before you take it.</div>`:'';
   if(N){
     $('view').innerHTML=head+head2+`
     <div class="card">
@@ -1043,7 +1067,12 @@ function takeScreen(tid){
   }
   const U=unitsOf(tid);
   $('view').innerHTML=head+head2+`
-    ${U>1?`<div class="card"><div class="pcbar"><b>${unitsFree(tid)}</b> of ${U} in store right now${unitsFree(tid)<U?` \u00b7 <span style="color:var(--amber)">${U-unitsFree(tid)} out</span>`:''}</div></div>`:''}
+    ${U>1?(()=>{ const tk=unitTaken(tid); if(CUR_U&&tk.has(CUR_U)) CUR_U=null;
+      return `<div class="card"><div class="pcbar"><b>${unitsFree(tid)}</b> of ${U} in store right now${unitsFree(tid)<U?` \u00b7 <span style="color:var(--amber)">${U-unitsFree(tid)} out</span>`:''}</div>
+      <h3 style="margin:16px 0 8px">Which piece? Look at the letter on the sticker</h3>
+      <div class="ubtns">${unitLetters(tid).map(l=>{ const f=!tk.has(l); return `<button class="ubtn ${CUR_U===l?'on':''}" data-u="${l}" ${f?'':'disabled'} onclick="pickU('${l}')">${l}<small>${f?'In store':'Out'}</small></button>`; }).join('')}</div>
+      ${(()=>{ const nl=openMovesOf(tid).filter(x=>!x.unit).length; return nl?`<div class="alert warn" style="margin:10px 0 0">${nl} piece${nl!==1?'s are':' is'} out with no letter recorded (taken before stickers) \u2014 check the shelf for the letter in your hand.</div>`:''; })()}
+      <div class="muted" id="uSel" style="margin-top:10px">${CUR_U?'You take: <b>'+esc(tid)+' \u00b7 piece '+CUR_U+'</b> (scanned)':'Tap the letter of the piece in your hand'}</div></div>`; })():''}
     ${isSet&&items.length?`<div class="card"><h3>Which pieces?</h3>${items.map((it,i)=>`<div class="setrow"><input type="checkbox" id="it${i}" value="${esc(it)}" checked><label for="it${i}">${esc(it)}</label></div>`).join('')}</div>`:isSet?`<div class="card"><div class="alert info">This is a set; piece list not entered yet.</div></div>`:''}
     <div class="alert info" style="margin-bottom:2px">The store keeper must hand this tool over and accept it before it is yours.</div>
     <button class="btn primary" onclick="doTake()">Request this tool</button>`;
@@ -1092,6 +1121,11 @@ async function doTake(){
   const N=pcN(t);
   if(myMove(CUR)){toast(N?'You already hold pieces of this set':'You already have this tool');openTool(CUR);return;}
   if(!N && unitsFree(CUR)<=0){toast('This tool was just taken \u2014 it is not free');openTool(CUR);return;}
+  const UU=N?1:unitsOf(CUR);
+  if(UU>1){
+    if(!CUR_U||!unitLetters(CUR).includes(CUR_U)){toast('Tap the piece letter (A, B\u2026) \u2014 look at the sticker');return;}
+    if(unitTaken(CUR).has(CUR_U)){toast(CUR+'-'+CUR_U+' was just taken \u2014 choose the other piece');takeScreen(CUR);return;}
+  }
   if(N){                                   // the hard rule lives here
     if(!PK.mode){toast('Choose full set or pieces');return;}
     const free=freePcs(CUR);
@@ -1111,7 +1145,7 @@ async function doTake(){
     items=[...document.querySelectorAll('.setrow input:checked')].map(b=>b.value).join(', ');
   }
   TAKE_AT=Date.now(); TAKE_KEY=ME.id+'|'+CUR;
-  window.DB.add({kind:'TOOL',tid:CUR,tech:ME.name,techId:ME.id,sec:ME.sec,idBy:ID_METHOD,req:new Date().toISOString(),out:null,ret:null,cin:null,note:'',items,full,pcs,status:'REQ'}).catch(saveErr);
+  window.DB.add({kind:'TOOL',tid:CUR,unit:UU>1?CUR_U:null,tech:ME.name,techId:ME.id,sec:ME.sec,idBy:ID_METHOD,req:new Date().toISOString(),out:null,ret:null,cin:null,note:'',items,full,pcs,status:'REQ'}).catch(saveErr);
   toast('Sent to store keeper — '+CUR);techToolList();
 }
 let RG=null;
@@ -1121,7 +1155,7 @@ function returnScreen(tid,m){
   $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button>
     <div class="actban ret"><span class="ar">↓</span> You are returning a tool</div>
     ${m.rejBy?`<div class="alert red"><b>${esc(m.rejBy)} did not accept your return.</b><br>Check the tool and return it again.</div>`:''}
-    <div class="alert warn"><b>You have this tool</b> · taken ${fmtTime(m.out)}</div>
+    <div class="alert warn"><b>You have this tool${m.unit?' \u2014 PIECE '+m.unit:''}</b> · taken ${fmtTime(m.out)}${m.unit?'<br>Return the piece with sticker <b>'+esc(m.tid)+'-'+m.unit+'</b>':''}</div>
     <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'')}</div><div class="meta">${meta(t)}</div>${m.items?`<div class="kv" style="margin-top:10px"><span class="k">Pieces taken</span><span class="v">${esc(m.items)}</span></div>`:''}</div>
     <div class="card"><h3>Condition on return</h3><div class="grades" id="grades">
       <button class="grade" data-g="A" onclick="sg('A')">A<small>Good</small></button><button class="grade" data-g="B" onclick="sg('B')">B<small>Defect</small></button>
@@ -1243,6 +1277,26 @@ const pcsOf=(m,N)=>(m.full||!(parseInt(m.pcs,10)>0))?N:parseInt(m.pcs,10);
    so the second man is never blocked while one is still on the shelf.            */
 function unitsOf(tid){ const t=toolById(tid); if(!t||pcN(t)) return 1; const q=parseInt(t[T_QTY],10)||1; return q>1?q:1; }
 function unitsFree(tid){ return Math.max(0,unitsOf(tid)-openMovesOf(tid).length); }
+/* ===== PIECE LETTERS (v20) =====
+   A tool with 2-3 pieces under one number has one sticker per piece: 1110-A, 1110-B, 1110-C.
+   The letter on the sticker is the mark - the record says WHICH piece a man has. */
+const UL=['A','B','C','D','E','F'];
+let CUR_U=null, NP_U=null;
+function unitLetters(tid){ const U=unitsOf(tid); return U>1?UL.slice(0,U):[]; }
+function unitTaken(tid){ return new Set(openMovesOf(tid).map(m=>m.unit).filter(Boolean)); }
+function freeLetters(tid){ const tk=unitTaken(tid); return unitLetters(tid).filter(l=>!tk.has(l)); }
+const unitLine=m=>m&&m.unit?`<div class="unitline">PIECE ${m.unit} \u00b7 sticker ${esc(m.tid)}-${m.unit}</div>`:'';
+/* what a tool QR may contain: "1110" or "1110-A" (the letter only for a tool that has pieces) */
+function parseToolQR(txt){
+  const raw=String(txt||'').trim(), up=raw.toUpperCase();
+  const m=/^(.+)-([A-F])$/.exec(up);
+  if(m){ const id=toolById(m[1])?m[1]:null; if(id&&unitLetters(id).includes(m[2])) return {tid:id,unit:m[2]}; }
+  if(toolById(raw)) return {tid:raw,unit:null};
+  if(toolById(up)) return {tid:up,unit:null};
+  return null;
+}
+function pickU(l){ CUR_U=l; document.querySelectorAll('.ubtn').forEach(b=>b.classList.toggle('on',b.dataset.u===l));
+  const s=$('uSel'); if(s) s.innerHTML='You take: <b>'+esc(CUR)+' \u00b7 piece '+l+'</b>'; }
 /* what a tool list shows for a tool that can be shared: null = an ordinary single tool */
 function listState(tid){
   const N=pcNof(tid), U=N?1:unitsOf(tid);
@@ -1367,7 +1421,7 @@ function rlist(){
     if(m.status==='REQ')ban=`<div class="actban take"><span class="ar">↑</span> Taking a tool <span class="sm2">give it and accept</span></div>`+
       (m.idBy==='typed'?`<div class="alert warn" style="margin:0 0 9px;padding:9px 11px;font-size:12px"><b>ID was typed, not scanned</b> — check the man in front of you is really <b>${esc(m.tech)}</b>.</div>`:'');
     if(m.status==='PENDING')ban=`<div class="actban ret"><span class="ar">↓</span> Returning a tool <span class="sm2">check it and accept</span></div>`;
-    return `<div class="rec">${ban}<div class="hd"><span class="rid">${t[T_ID]}</span><span class="rname">${esc(t[T_NAME]||'(no name)')}</span>${b}</div>
+    return `<div class="rec">${ban}<div class="hd"><span class="rid">${t[T_ID]}</span><span class="rname">${esc(t[T_NAME]||'(no name)')}</span>${b}</div>${unitLine(m)}
       <div class="sub" style="font-weight:700;color:var(--ink)">${meta(t)}</div>
       <div class="sub">${techTag(m)} · ${when}</div>
       ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}
@@ -1385,7 +1439,7 @@ function rlist(){
       ${m.outBy&&!m.noPhone?`<div class="sub">Handed over by <b>${esc(m.outBy)}</b></div>`:''}
       ${m.inBy?`<div class="sub">Taken back by <b>${esc(m.inBy)}</b></div>`:''}
       ${m.status==='OUT'&&m.noPhone?`<div class="row2"><button class="btn green sm" onclick="npReturn('${m.id}')">Take back (no phone)</button></div>`:''}
-      ${m.status==='REQ'&&dmgOf(m.tid)?`<div class="alert red" style="margin:8px 0 0"><b>Open damage report on this tool</b> \u2014 ${esc(GRADE_WORD[dmgOf(m.tid).cin]||'')}${dmgOf(m.tid).note?': '+esc(dmgOf(m.tid).note):''}</div>`:''}
+      ${m.status==='REQ'&&dmgOf(m.tid)?`<div class="alert red" style="margin:8px 0 0"><b>Open damage report on this tool${dmgOf(m.tid).unit?' (piece '+dmgOf(m.tid).unit+')':''}</b> \u2014 ${esc(GRADE_WORD[dmgOf(m.tid).cin]||'')}${dmgOf(m.tid).note?': '+esc(dmgOf(m.tid).note):''}</div>`:''}
       ${m.status==='REQ'&&reqBlock(m)?`<div class="alert red" style="margin:8px 0 0"><b>${esc(reqBlock(m))}</b></div>`:''}
       ${m.status==='REQ'?`<div class="row2"><button class="btn red sm" onclick="reqRej('${m.id}')">Decline</button><button class="btn green sm" onclick="reqOk('${m.id}')">Accept — give tool</button></div>`:''}
       ${m.status==='PENDING'?`<div class="row2"><button class="btn red sm" onclick="rej('${m.id}')">Reject</button><button class="btn green sm" onclick="${pcNof(m.tid)?`cinPieces('${m.id}')`:`cin('${m.id}')`}">Accept — take back</button></div>`:''}</div>`;
@@ -1409,7 +1463,7 @@ function rdamaged(box){
     return `<div class="rec" style="border-left:4px solid ${m.dmgFixed?'var(--green)':red};padding-left:10px">
       <div class="hd"><span class="rid">${esc(m.tid)}</span>
         <span class="rname">${esc(t[T_NAME]||'')}</span>
-        <span class="badge ${m.dmgFixed?'instore':'out'}">${m.dmgFixed?'Replaced':g+' \u00b7 '+word}</span></div>
+        <span class="badge ${m.dmgFixed?'instore':'out'}">${m.dmgFixed?'Replaced':g+' \u00b7 '+word}</span></div>${unitLine(m)}
       <div class="sub" style="font-weight:700;color:var(--ink)">${meta(t)}</div>
       ${m.note?`<div class="alert ${g==='D'?'red':'warn'}" style="margin:8px 0 6px;text-align:left">
           <b>What the technician wrote</b><br>${esc(m.note)}</div>`:
@@ -1490,7 +1544,7 @@ function paintAll(box){
   box.innerHTML=list.map(t=>{
     const L=lm[t[T_ID]]||toolLive(t[T_ID]), m=L.m, d=openDmg[t[T_ID]];
     let who='';
-    if(L.ms&&L.ms.length&&(L.k==='part'||L.units)) who=L.ms.map(x=>`<div class="sub">${x.status==='REQ'?'Requested by':x.status==='PENDING'?'Coming back from':'With'} <b>${esc(x.tech)}</b> \u00b7 ${L.units?esc(x.sec):(x.full?'full set':esc(x.items||''))}</div>`).join('');
+    if(L.ms&&L.ms.length&&(L.k==='part'||L.units)) who=L.ms.map(x=>`<div class="sub">${x.status==='REQ'?'Requested by':x.status==='PENDING'?'Coming back from':'With'} <b>${esc(x.tech)}</b> \u00b7 ${L.units?esc(x.sec):(x.full?'full set':esc(x.items||''))}${x.unit?' \u00b7 piece <b>'+x.unit+'</b>':''}</div>`).join('');
     else if(m&&L.k!=='in') who=`<div class="sub">${L.k==='req'?'Requested by':L.k==='ret'?'Returned by':'With'} <b>${esc(m.tech)}</b> \u00b7 ${esc(m.sec)}${m.out&&(L.k==='out'||L.k==='over')?' \u00b7 '+ago(m.out)+' ago':''}</div>`;
     return `<div class="rec" style="border-left:4px solid ${L.k==='in'?'var(--green)':L.k==='over'?'var(--red)':L.k==='part'?'var(--brass)':'var(--amber)'};padding-left:10px">
       <div class="hd"><span class="rid">${esc(t[T_ID])}</span>
@@ -1511,7 +1565,7 @@ function recvToday(){ return toolMoves().filter(m=>m.status==='IN'&&isToday(m.re
 /* ONE history row - shared by History and Received today */
 function histRow(m){const t=toolById(m.tid)||[m.tid,'','?'];let s,col;
     if(m.status==='REQ'){s='Requested · waiting';col='var(--amber)';}else if(m.status==='OUT'){s=isOverdue(m)?'Out · overdue':'Out';col='var(--red)';}else if(m.status==='PENDING'){s='Returned · waiting';col='var(--amber)';}else{s='Returned · received';col='var(--green)';}
-    return `<div class="rec"><div class="hd"><span class="rid">${esc(m.tid)}</span><span class="rname">${esc(t[T_NAME]||'')}</span><span class="badge" style="background:#eef1f5;color:${col}">${s}</span></div>
+    return `<div class="rec"><div class="hd"><span class="rid">${esc(m.tid)}</span><span class="rname">${esc(t[T_NAME]||'')}</span><span class="badge" style="background:#eef1f5;color:${col}">${s}</span></div>${unitLine(m)}
       <div class="sub">${techTag(m)}</div>
       ${(m.outBy||m.inBy)?`<div class="sub">${m.outBy?'given by <b>'+esc(m.outBy)+'</b>':''}${m.outBy&&m.inBy?' · ':''}${m.inBy?'taken back by <b>'+esc(m.inBy)+'</b>':''}</div>`:''}
       <div class="sub">${m.status==='REQ'?'Requested '+fmtTime(m.req):'OUT '+fmtTime(m.out)+(m.ret?' → IN '+fmtTime(m.recvAt||m.ret):'')}${m.cin?' · condition <b>'+m.cin+'</b>':''}</div>
@@ -1563,7 +1617,7 @@ function rtechprofile(box){
   const rowHtml=m=>{const t=toolById(m.tid)||[m.tid,'','?'];
     let b='';if(m.status==='OUT')b=isOverdue(m)?'<span class="badge out">Overdue</span>':'<span class="badge" style="background:var(--bluebg);color:var(--blue)">Out</span>';else if(m.status==='REQ')b='<span class="badge pend">Take · waiting</span>';else if(m.status==='PENDING')b='<span class="badge pend">Return · waiting</span>';else b='<span class="badge instore">Returned</span>';
     const dmg=m.cin&&m.cin!=='A';
-    return `<div class="rec"><div class="hd"><span class="rid">${esc(m.tid)}</span><span class="rname">${esc(t[T_NAME]||'(no name)')}</span>${b}</div>
+    return `<div class="rec"><div class="hd"><span class="rid">${esc(m.tid)}</span><span class="rname">${esc(t[T_NAME]||'(no name)')}</span>${b}</div>${unitLine(m)}
       <div class="sub">${m.status==='REQ'?'Requested '+fmtTime(m.req):'OUT '+fmtTime(m.out)+(m.ret?' → IN '+fmtTime(m.recvAt||m.ret):' · '+ago(m.out)+' ago')}${m.cin?' · condition <b>'+m.cin+'</b>':''}</div>
       ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}${m.note?`<div class="sub">Note: ${esc(m.note)}</div>`:''}
       ${dmg&&m.status==='PENDING'?`<div class="alert red" style="margin:8px 0 0">Defect — check before confirming</div>`:''}
@@ -1659,7 +1713,7 @@ function ttMove(m,noAct){
   if(m.status==='IN') L.push('Received <b>'+fmtTime(m.recvAt||m.ret)+'</b>'+(m.inBy?' by <b>'+esc(m.inBy)+'</b>':''));
   if(m.status==='PENDING') L.push('Waiting for the store keeper to receive');
   const dmg=m.cin&&m.cin!=='A';
-  return `<div class="rec"><div class="hd"><span class="rid">${esc(m.tid)}</span><span class="rname">${esc(t[T_NAME]||'(no name)')}</span>${b}</div>
+  return `<div class="rec"><div class="hd"><span class="rid">${esc(m.tid)}</span><span class="rname">${esc(t[T_NAME]||'(no name)')}</span>${b}</div>${unitLine(m)}
     <div class="sub" style="font-weight:700;color:var(--ink)">${meta(t)}</div>
     ${L.map(x=>`<div class="sub">${x}</div>`).join('')}
     ${m.noPhone?`<div class="sub" style="color:var(--red);font-weight:700">NO PHONE — issued manually</div>`:''}
@@ -1910,9 +1964,9 @@ function downloadReport(key){
   push('');
   push('DAMAGED & REPLACED');
   push('Still damaged',d.dmgOpen.length,'Replaced with new',d.dmgDone.length,'Missing / lost',d.missing.length);
-  push('Tool No','Tool name','Grade','What it means','Technician','Section','Reported','Reason the technician typed','Replaced?','Replaced by','Replaced when');
+  push('Tool No','Piece','Tool name','Grade','What it means','Technician','Section','Reported','Reason the technician typed','Replaced?','Replaced by','Replaced when');
   d.dmgAll.forEach(m=>{const t=toolById(m.tid)||[m.tid,'',''];
-    push(m.tid,t[T_NAME]||'',m.cin,GRADE_WORD[m.cin]||'',m.tech,m.sec,fmtTime(m.ret||m.out),m.note||'',
+    push(m.tid,m.unit||'',t[T_NAME]||'',m.cin,GRADE_WORD[m.cin]||'',m.tech,m.sec,fmtTime(m.ret||m.out),m.note||'',
          m.dmgFixed?'YES':'NO',m.dmgFixedBy||'',m.dmgFixed?fmtTime(m.dmgFixedAt):'');});
   push('');
   push('CAME WITHOUT PHONE');
@@ -1920,9 +1974,9 @@ function downloadReport(key){
   d.noPhoneRows.forEach(r=>push(r.tech,r.id||'',r.sec||'',r.times,r.tools.join(' ')));
   push('');
   push('MISSING / LOST');
-  push('Tool ID','Tool name','Technician','Section','Reported','Note');
+  push('Tool ID','Piece','Tool name','Technician','Section','Reported','Note');
   d.missing.forEach(m=>{const t=toolById(m.tid)||[m.tid,'',''];
-    push(m.tid,t[T_NAME]||'',m.tech,m.sec,fmtTime(m.ret||m.out),m.note||'');});
+    push(m.tid,m.unit||'',t[T_NAME]||'',m.tech,m.sec,fmtTime(m.ret||m.out),m.note||'');});
   push('');
   push('OVERDUE NOW');
   push('Tool ID','Tool name','Technician','Section','Out since','Held');
@@ -1947,9 +2001,9 @@ function downloadReport(key){
     push(fmtTime(e.at),e.tech,e.techId||'',e.sec,e.noPhone?'No phone':(e.idBy==='typed'?'ID typed':e.idBy==='scan'?'QR sticker':'Own phone link'),e.keeper||''));
   push('');
   push('ALL MOVEMENTS');
-  push('Tool ID','Tool name','Technician','Technician ID','Section','Out','Given by','Returned','Received','Taken back by','Condition','Pieces','Pieces not returned','Note','No phone','Status');
+  push('Tool ID','Piece','Tool name','Technician','Technician ID','Section','Out','Given by','Returned','Received','Taken back by','Condition','Pieces','Pieces not returned','Note','No phone','Status');
   d.moves.forEach(m=>{const t=toolById(m.tid)||[m.tid,'',''];
-    push(m.tid,t[T_NAME]||'',m.tech,m.techId||'',m.sec,fmtTime(m.out),m.outBy||'',m.ret?fmtTime(m.ret):'',m.status==='IN'?fmtTime(m.recvAt||m.ret):'',m.inBy||'',m.cin||'',m.items||'',m.missPcs||'',m.note||'',m.noPhone?'YES':'',m.status);});
+    push(m.tid,m.unit||'',t[T_NAME]||'',m.tech,m.techId||'',m.sec,fmtTime(m.out),m.outBy||'',m.ret?fmtTime(m.ret):'',m.status==='IN'?fmtTime(m.recvAt||m.ret):'',m.inBy||'',m.cin||'',m.items||'',m.missPcs||'',m.note||'',m.noPhone?'YES':'',m.status);});
   const csv='\ufeff'+rows.join('\r\n');
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   const a=document.createElement('a');
@@ -2049,7 +2103,7 @@ function npList(){
       <span class="go">${free?'&rsaquo;':'<span class="badge out">Not free</span>'}</span></div>`;
   }).join('')+(all.length>40?`<div class="muted center" style="padding:10px">Showing first 40 of ${all.length} \u00b7 type to search</div>`:'') : '<div class="empty">No tool found</div>';
 }
-function npChoose(tid){ if(!LOADED){toast('Loading the tool data \u2014 one moment');return;} NP_TOOL=tid; npConfirm(); }
+function npChoose(tid){ if(!LOADED){toast('Loading the tool data \u2014 one moment');return;} NP_TOOL=tid; NP_U=null; npConfirm(); }
 function npConfirm(){
   const t=toolOr(NP_TOOL);
   curStoreView=null; setTitle('Confirm','Issue without phone');
@@ -2063,6 +2117,9 @@ function npConfirm(){
       <div class="kv"><span class="k">ID</span><span class="v">${esc(NP_TECH.id)}</span></div>
       <div class="kv"><span class="k">Section</span><span class="v">${esc(NP_TECH.sec)}</span></div>
       ${pcNof(NP_TOOL)?`<div class="kv"><span class="k">Given as</span><span class="v">Full set \u2014 ${pcNof(NP_TOOL)} pieces</span></div>`:''}
+      ${unitsOf(NP_TOOL)>1?(()=>{ const tk=unitTaken(NP_TOOL); if(NP_U&&tk.has(NP_U)) NP_U=null;
+        return `<h3 style="margin:16px 0 8px">Which piece? Letter on the sticker</h3><div class="ubtns">${unitLetters(NP_TOOL).map(l=>{ const f=!tk.has(l);
+          return `<button class="ubtn ${NP_U===l?'on':''}" data-u="${l}" ${f?'':'disabled'} onclick="NP_U='${l}';npConfirm()">${l}<small>${f?'In store':'Out'}</small></button>`; }).join('')}</div>`; })():''}
       <div class="kv"><span class="k">Recorded as</span><span class="v" style="color:var(--red)">NO PHONE</span></div>
       <div class="kv"><span class="k">Cabin entry</span><span class="v">Recorded by you</span></div>
     </div>
@@ -2074,6 +2131,9 @@ async function npIssue(){
   if(!requireKeeper()) return;
   if(!npFree(NP_TOOL)){ toast('That tool is not in store'); npPickTool(); return; }
   if(LOG.some(x=>x.kind==='TOOL'&&x.tid===NP_TOOL&&x.status!=='IN'&&String(x.techId)===String(NP_TECH.id))){ toast('He already has this tool'); npPickTool(); return; }
+  const NPU=unitsOf(NP_TOOL)>1;
+  if(NPU){ if(!NP_U||!unitLetters(NP_TOOL).includes(NP_U)){ toast('Tap the piece letter on the sticker'); return; }
+           if(unitTaken(NP_TOOL).has(NP_U)){ toast('That piece is already out'); NP_U=null; npConfirm(); return; } }
   const NPN=pcNof(NP_TOOL);              // a set given without a phone always goes as the FULL set
   const now=new Date().toISOString();
   // the technician could not scan the cabin QR, so the store keeper records his entry here
@@ -2082,10 +2142,10 @@ async function npIssue(){
       idBy:'nophone',noPhone:true,byKeeper:true,at:now,out:now,status:'ENTRY',...kStamp()}).catch(saveErr);
   }
   window.DB.add({kind:'TOOL',tid:NP_TOOL,tech:NP_TECH.name,techId:NP_TECH.id,sec:NP_TECH.sec,
-    idBy:'nophone',noPhone:true,byKeeper:true,req:now,out:now,ret:null,cin:null,note:'',items:NPN?'FULL SET ('+NPN+' pcs)':'',full:!!NPN,pcs:NPN||0,status:'OUT',
+    idBy:'nophone',noPhone:true,byKeeper:true,req:now,out:now,ret:null,cin:null,note:'',items:NPN?'FULL SET ('+NPN+' pcs)':'',full:!!NPN,pcs:NPN||0,status:'OUT',unit:NPU?NP_U:null,
     outBy:KEEPER.short,outById:KEEPER.id,outByName:KEEPER.name}).catch(saveErr);
   toast('Given to '+NP_TECH.name.split(' ')[0]+' by '+KEEPER.short+' — NO PHONE recorded');
-  NP_TECH=null; NP_TOOL=null; dash();
+  NP_TECH=null; NP_TOOL=null; NP_U=null; dash();
 }
 // store keeper returns a tool for a technician who still has no phone
 function npReturn(id){
@@ -2096,7 +2156,7 @@ function npReturn(id){
     <div class="actban ret"><span class="ar">&darr;</span> Taking a tool back <span class="sm2">no phone</span></div>
     <div class="card detail"><div class="tid">${t[T_ID]}</div>
       <div class="tname">${esc(t[T_NAME]||'(no name)')}</div>
-      <div class="meta">${esc(m.tech)} &middot; ${esc(m.sec)} &middot; out ${fmtTime(m.out)}</div></div>
+      <div class="meta">${esc(m.tech)} &middot; ${esc(m.sec)} &middot; out ${fmtTime(m.out)}</div>${unitLine(m)}</div>
     <div class="card"><h3>Condition of the tool</h3>
       <div class="grades" id="npgrades">
         <button class="grade" data-g="A" onclick="npSg('A')">A<small>Good</small></button>
@@ -2128,7 +2188,9 @@ function reqBlock(m){
   const N=pcNof(m.tid);
   const others=LOG.filter(x=>x.kind==='TOOL'&&x.tid===m.tid&&x.id!==m.id&&(x.status==='OUT'||x.status==='PENDING'));
   if(!N){ const U=unitsOf(m.tid);
-    return others.length>=U?(U>1?('All '+U+' are already out \u2014 decline this request'):('Already out with '+others[0].tech+' \u2014 decline this request')):''; }
+    if(others.length>=U) return U>1?('All '+U+' are already out \u2014 decline this request'):('Already out with '+others[0].tech+' \u2014 decline this request');
+    if(m.unit){ const h=others.find(x=>x.unit===m.unit); if(h) return 'Piece '+m.unit+' is already out with '+h.tech+' \u2014 decline this request'; }
+    return ''; }
   const used=others.reduce((a,x)=>a+pcsOf(x,N),0);
   const want=pcsOf(m,N);
   return used+want>N?('Only '+Math.max(0,N-used)+' piece(s) left in store \u2014 decline this request'):'';
