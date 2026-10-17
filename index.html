@@ -365,6 +365,10 @@ button.btn[disabled]{opacity:.42;pointer-events:none}
 .livebtn .lt2{opacity:.95}
 .idcard .meta{opacity:.9}
 .top .sub{opacity:.85}
+/* v22: take / return choice */
+.btn.choice{display:flex;flex-direction:column;align-items:center;gap:4px;padding:20px 14px;font-size:19px;font-weight:900;letter-spacing:.04em;margin-top:12px;color:#fff}
+.btn.choice small{font-size:12.5px;font-weight:600;letter-spacing:0;opacity:.9}
+.btn.choice.take{background:var(--obsidian)}.btn.choice.ret{background:var(--green)}
 /* v21: reset screen + credits */
 .rs-cred{border-radius:18px;padding:18px 18px 8px;margin-bottom:16px;color:#fff;overflow:hidden;
   background:radial-gradient(120% 90% at 100% 0%,#B3121F 0%,#5E0A12 38%,#121417 78%);box-shadow:0 10px 28px rgba(0,0,0,.28)}
@@ -399,6 +403,9 @@ button.btn[disabled]{opacity:.42;pointer-events:none}
 .ubtn small{display:block;font-family:var(--sans);font-size:11px;font-weight:700;margin-top:6px;letter-spacing:.04em}
 .ubtn.on{background:var(--obsidian);color:#fff;border-color:var(--obsidian)}
 .ubtn:disabled{opacity:.35}
+.upick{display:flex;align-items:center;gap:14px}
+.upick .ubig{flex:0 0 58px;height:58px;border-radius:12px;background:var(--obsidian);color:#fff;display:flex;align-items:center;justify-content:center;font:900 30px/1 var(--mono)}
+.upick b{font-size:18px;color:var(--ink)}.upick small{display:block;font-size:13px;color:#2A323D;margin-top:3px}
 .unitline{display:inline-block;margin:7px 0 2px;padding:4px 10px;border-radius:7px;background:var(--obsidian);color:#fff;
   font-family:var(--mono);font-weight:700;font-size:12.5px;letter-spacing:.03em}
 /* v19: technician identity is always strong */
@@ -540,12 +547,12 @@ const T_ID=0,T_PART=1,T_NAME=2,T_QTY=3,T_TYPE=4,T_LOC=5,T_SET=6,T_STORE=7,T_SYS=
 /* T_ID    = OUR system number, TL-001 ... — this is what goes on the QR sticker
    T_STORE = the store's own tool number from his SST sheet, e.g. 3105
    T_PART  = the Toyota SST part number, e.g. 09350-30020 */
-function meta(t){ const p=[];
+function meta(t,tech){ const p=[];   /* tech = technician screen: no store quantity */
   if(t[T_PART])  p.push(t[T_PART]);          // manual tools may carry a part no
   if(t[T_LOC])   p.push(t[T_LOC]);
   if(t[T_TYPE]==='Set') p.push('Set');
   if(t[T_SET])   p.push(t[T_SET]);
-  if((parseInt(t[T_QTY],10)||1)>1 && !pcN(t)) p.push('Store has '+parseInt(t[T_QTY],10));
+  if(!tech && (parseInt(t[T_QTY],10)||1)>1 && !pcN(t)) p.push('Store has '+parseInt(t[T_QTY],10));
   return esc(p.join(' \u00b7 ')||'\u2014'); }
 const ref=meta;                               // old name still works
 const SEC_FULL={EM:'Express Maintenance',QS:'Quick Service',QL:'Quick Lube',GR:'General Repair',BS:'Body Shop'};
@@ -666,6 +673,7 @@ function liveRefresh(){
   if(ROLE==='store'){
     if(curStoreView===dash && $('alist') && document.activeElement && document.activeElement.id==='aqi'){ if($('tabs')) dtabs(); paintAll($('alist')); return; }
     if(curStoreView) curStoreView(); return; }
+  if(ROLE==='tech' && ME && (TV==='startwait'||TV==='choice')){ if(LOADED && (TV==='startwait'||techSig()!==TS_SIG)) techStart(); return; }
   if(ROLE==='tech' && GATE){
     if(TV==='list'){ if($('results')){ paintMine(); tsearch(); } else techToolList(); }
     else if(TV==='status'){ if(tvSig(CUR)!==TVSIG) techToolList(); }
@@ -720,7 +728,7 @@ function runBoot(){
       MY_LINK = raw;
       ID_METHOD = 'link';
       ME={sec:tech[0],id:tech[1],name:tech[2]};
-      ROLE='tech'; showApp('Technician'); techGate(); return;
+      ROLE='tech'; showApp('Technician'); techStart(); return;
     }
     ROLE='tech'; showApp('Technician'); badLink(raw); return;
   }
@@ -785,7 +793,7 @@ function home(){
   if(STORE_LINK){ pinBuf=''; showPick(); return; }        // store keeper -> back to the role page
   const t = MY_LINK ? findTech(MY_LINK) : null;
   ROLE='tech'; ME=null;
-  if(t){ ID_METHOD='link'; ME={sec:t[0],id:t[1],name:t[2]}; techGate(); }  // his link -> cabin scan
+  if(t){ ID_METHOD='link'; ME={sec:t[0],id:t[1],name:t[2]}; techStart(); }  // his link -> take/return or cabin scan
   else needLink();
 }
 function go(where){
@@ -849,7 +857,7 @@ function acceptSelf(id){
   const t=TECHS.find(x=>String(x[1])===String(id));
   if(!t){ toast('Something went wrong'); techPickSelf(); return; }
   ME={sec:t[0],id:t[1],name:t[2]};
-  techGate();
+  techStart();
 }
 // Scan his own technician sticker. The QR holds his personal link, so we read ?t= from it.
 function scanSelf(){
@@ -870,7 +878,7 @@ function scanSelf(){
     stopScanner(); ID_METHOD='scan';
     ME={sec:t[0],id:t[1],name:t[2]};
     toast('Welcome, '+t[2].split(' ')[0]);
-    techGate();
+    techStart();
   });
 }
 // pull the technician id out of a scanned personal link (or a bare id)
@@ -884,7 +892,8 @@ function readTechId(txt){
 
 // GATE: show identity, camera on, must scan cabin QR
 function techGate(){
-  GATE=false;
+  GATE=false; TV=null;
+  if(ME&&LOADED){ const od=overdueHeld(ME.id); if(od.length){ overdueBlock(od); return; } }
   setTitle('Scan cabin QR','Show this at the store cabin');
   $('view').innerHTML=`
     <div class="idcard">
@@ -901,11 +910,146 @@ function techGate(){
   startScanner(txt=>{ if(txt.trim()===CABIN_CODE){ passGate(); } else { toast('That is not the cabin QR'); } });
 }
 function passGate(){
+  if(ME&&LOADED){ const od=overdueHeld(ME.id); if(od.length){ stopScanner(); overdueBlock(od); return; } }
   stopScanner(); GATE=true;
   // record an entry event
   window.DB.add({kind:'ENTRY',techId:ME.id,tech:ME.name,sec:ME.sec,idBy:ID_METHOD,at:new Date().toISOString(),out:new Date().toISOString(),status:'ENTRY'}).catch(saveErr);
   toast('Entry logged — take your tools');
   techToolList();
+}
+
+/* ===== v22: COMING BACK — TAKE or RETURN =====
+   Holds no tool      -> cabin QR scan, exactly as before.
+   Holds tools        -> two buttons: TAKE TOOLS / RETURN TOOLS.
+   RETURN never needs the cabin QR: he scans the tool sticker, it is returned at once
+   (condition Good; "Report a problem" for damage) and waits for the store keeper.
+   TAKE always needs the cabin QR, and is BLOCKED while he holds an overdue tool.
+   The store keeper's hand-over (with phone or without) is blocked the same way. */
+const heldOut=id=>LOG.filter(m=>m.kind==='TOOL'&&m.status==='OUT'&&String(m.techId)===String(id));
+const overdueHeld=id=>heldOut(id).filter(isOverdue);
+/* returned late, but the store keeper has not received it yet */
+const lateUnreceived=id=>LOG.filter(m=>m.kind==='TOOL'&&m.status==='PENDING'&&String(m.techId)===String(id)&&m.out&&m.ret&&(new Date(m.ret)-new Date(m.out))>OVERDUE_H*3.6e6);
+const mvTag=m=>m.tid+(m.unit?'-'+m.unit:'');
+function keeperBlockFor(id){
+  const o=overdueHeld(id); if(o.length) return 'OVERDUE tool '+o.map(mvTag).join(', ')+' is still with him — he must return it first';
+  const l=lateUnreceived(id); if(l.length) return 'Receive his overdue tool '+l.map(mvTag).join(', ')+' first';
+  return '';
+}
+function heldRows(ms,click){
+  return ms.map(m=>{ const t=toolOr(m.tid), od=isOverdue(m);
+    return `<div class="toolrow"${click?` onclick="${click}('${m.id}')"`:''}><div class="id">${esc(mvTag(m))}</div>
+      <div class="nm">${esc(t[T_NAME]||'(no name)')} ${od?'<span class="badge out">Overdue '+ago(m.out)+'</span>':'<span class="badge" style="background:var(--bluebg);color:var(--blue)">With you</span>'}<small>Taken ${fmtTime(m.out)}</small>${m.items?`<small>Pieces: ${esc(m.items)}</small>`:''}${m.rejBy?`<small style="color:var(--red);font-weight:800">${esc(m.rejBy)} did not accept your return — check the tool</small>`:''}</div>
+      ${click?'<div class="go">›</div>':''}</div>`; }).join('');
+}
+let TS_SIG='';
+const techSig=()=>ME?LOG.filter(m=>m.kind==='TOOL'&&m.status!=='IN'&&String(m.techId)===String(ME.id)).map(m=>m.id+':'+m.status+':'+(m.rejBy||'')+':'+(isOverdue(m)?1:0)).sort().join('|'):'';
+function techStart(){
+  stopScanner(); GATE=false; TS_SIG=techSig();
+  if(!ME){ needLink(); return; }
+  if(!LOADED){ TV='startwait'; setTitle('One moment','Checking your tools');
+    $('view').innerHTML=`<div class="idcard"><div class="nm">${esc(ME.name)}</div><div class="meta">ID ${esc(ME.id)} · ${esc(ME.sec)}</div></div>
+      <div class="alert info">Loading your tools…</div><div id="slowNet"></div>`;
+    setTimeout(()=>{ const sn=$('slowNet'); if(sn&&TV==='startwait'&&!LOADED) sn.innerHTML=`<div class="alert warn"><b>Still loading.</b> Check the internet connection.</div><button class="btn primary" onclick="location.reload()">Reload</button>`; },8000);
+    return; }
+  const out=heldOut(ME.id);
+  if(!out.length){ TV=null; techGate(); return; }
+  TV='choice';
+  const od=out.filter(isOverdue);
+  setTitle('Take or return?','You hold '+out.length+' tool'+(out.length>1?'s':''));
+  $('view').innerHTML=`
+    <div class="idcard"><div class="nm">${esc(ME.name)}</div><div class="meta">ID ${esc(ME.id)} · ${esc(ME.sec)} — ${SEC_FULL[ME.sec]||''}</div></div>
+    <div class="card" style="padding:6px 14px"><h3 style="margin:12px 4px 4px">Tools with you (${out.length})</h3>${heldRows(out)}</div>
+    ${od.length?`<div class="alert red"><b>Overdue: ${esc(od.map(mvTag).join(', '))}</b><br>Return it first — then you can take new tools.</div>`:''}
+    <button class="btn choice take" id="btnTake" onclick="techTake()">TAKE TOOLS<small>${od.length?'Blocked — return the overdue tool first':'Scan the cabin QR'}</small></button>
+    <button class="btn choice ret" id="btnRet" onclick="retCam()">RETURN TOOLS<small>Scan the tool — no cabin scan</small></button>`;
+}
+function techTake(){ const od=overdueHeld(ME.id); if(od.length){ overdueBlock(od); return; } techGate(); }
+function overdueBlock(od){
+  stopScanner(); GATE=false; TV='block';
+  setTitle('Return first','You have an overdue tool');
+  $('view').innerHTML=`<button class="back" onclick="techStart()">‹ Back</button>
+    <div class="alert red"><b>You cannot take new tools now.</b><br>This tool is overdue (more than ${OVERDUE_H} hours). Return it first.</div>
+    <div class="card" style="padding:6px 14px">${heldRows(od)}</div>
+    <button class="btn green" id="btnRetNow" onclick="retCam()">Return now — scan the tool</button>`;
+}
+let RET_BUSY=false;
+function retCam(){
+  GATE=false;
+  const out=heldOut(ME.id);
+  if(!out.length){ toast('You have no tool to return'); techStart(); return; }
+  TV='retcam'; RET_BUSY=false;
+  setTitle('Return tools','Scan the tool QR — no cabin scan');
+  $('view').innerHTML=`<button class="back" onclick="techStart()">‹ Back</button>
+    <div class="actban ret"><span class="ar">↓</span> RETURN — scan the sticker on the tool</div>
+    <div id="reader"></div>
+    <div class="scanhint" id="camfail" style="display:none"><div class="qic">📷</div><div class="t">Camera not available</div>
+      <div class="d">Tap the tool you are returning in the list below.</div></div>
+    <div class="card" id="retlist" style="padding:6px 14px;margin-top:10px;display:none"><h3 style="margin:12px 4px 4px">Tap the tool you return</h3>${heldRows(out,'quickReturn')}</div>
+    <button class="btn ghost" onclick="techStart()">Done</button>`;
+  startScanner(retScan);
+  /* the list to tap appears ONLY when the camera cannot work - normally the tool sticker must be scanned */
+  const iv=setInterval(()=>{ const cf=$('camfail'), rl=$('retlist');
+    if(!rl||TV!=='retcam'){ clearInterval(iv); return; }
+    if(cf&&cf.style.display==='block'){ rl.style.display='block'; clearInterval(iv); }
+  },250);
+}
+function retScan(txt){
+  if(RET_BUSY) return;
+  if(String(txt||'').trim()===CABIN_CODE){ toast('That is the cabin QR — to take tools go Back and press TAKE TOOLS'); return; }
+  const q=parseToolQR(txt); if(!q){ toast('Unknown tool QR'); return; }
+  const mine=heldOut(ME.id).filter(m=>m.tid===q.tid);
+  if(!mine.length){ toast('Tool '+q.tid+(q.unit?'-'+q.unit:'')+' is not with you'); return; }
+  let m=null;
+  if(q.unit){ m=mine.find(x=>x.unit===q.unit)||(mine.every(x=>!x.unit)?mine[0]:null);
+    if(!m){ const h=mine.find(x=>x.unit)||mine[0]; toast('You have piece '+h.unit+' — scan sticker '+mvTag(h)); return; } }
+  else { m=mine.length===1?mine[0]:null; if(!m){ toast('Scan the sticker with the piece letter (A, B…)'); return; } }
+  quickReturn(m.id);
+}
+let RET_LAST=null;
+function quickReturn(mid){
+  if(RET_BUSY) return;
+  const mv=LOG.find(x=>x.id===mid);
+  if(!mv||mv.kind!=='TOOL'||mv.status!=='OUT'||String(mv.techId)!==String(ME.id)){ toast('This tool is not with you any more'); retCam(); return; }
+  RET_BUSY=true; stopScanner();
+  window.DB.update(mid,{ret:new Date().toISOString(),cin:'A',note:'',status:'PENDING'}).catch(saveErr);
+  RET_LAST=mid; retDone(mid);
+}
+function retDone(mid){
+  TV='input';
+  const mv=LOG.find(x=>x.id===mid)||{}; const t=toolOr(mv.tid);
+  const left=heldOut(ME.id).filter(x=>x.id!==mid).length;
+  const bad=mv.cin&&mv.cin!=='A';
+  setTitle('Returned','Give the tool to the store keeper');
+  $('view').innerHTML=`<div class="actban ret"><span class="ar">✓</span> RETURNED</div>
+    <div class="card detail"><div class="tid">${esc(mvTag(mv))}</div><div class="tname">${esc(t[T_NAME]||'')}</div><div class="meta">${meta(t,1)}</div></div>
+    <div class="alert ${bad?'red':'green'}">${bad?'<b>Problem reported:</b> '+esc(GRADE_WORD[mv.cin]||'')+(mv.note?' — '+esc(mv.note):''):'<b>Condition: Good.</b>'}<br>Give the tool to the store keeper — he receives it.</div>
+    <button class="btn ghost" id="btnProb" onclick="retProblem('${mid}')">⚠ Report a problem with this tool</button>
+    ${left?`<button class="btn green" id="btnNext" onclick="retCam()">Scan next tool (${left} left)</button>`:''}
+    <button class="btn primary" id="btnDone" onclick="techStart()">Done</button>`;
+}
+let RP=null;
+function retProblem(mid){
+  TV='input'; RP=null;
+  const mv=LOG.find(x=>x.id===mid)||{}; const t=toolOr(mv.tid);
+  setTitle('Report a problem',mvTag(mv));
+  $('view').innerHTML=`<button class="back" onclick="retDone('${mid}')">‹ Back</button>
+    <div class="card detail"><div class="tid">${esc(mvTag(mv))}</div><div class="tname">${esc(t[T_NAME]||'')}</div></div>
+    <div class="card"><h3>What is wrong?</h3><div class="grades" id="rpg">
+      <button class="grade" data-g="B" onclick="rpPick('B')">B<small>Defect</small></button>
+      <button class="grade" data-g="C" onclick="rpPick('C')">C<small>Damaged</small></button>
+      <button class="grade" data-g="D" onclick="rpPick('D')">D<small>Missing</small></button></div>
+      <label class="f" style="margin-top:6px">What is the problem?</label><textarea class="big" id="rpnote" placeholder="e.g. one bolt missing from base plate"></textarea></div>
+    <button class="btn red" onclick="rpSave('${mid}')">Save the problem</button>`;
+}
+function rpPick(g){ RP=g; document.querySelectorAll('#rpg .grade').forEach(b=>b.classList.toggle('sel',b.dataset.g===g)); }
+function rpSave(mid){
+  if(!RP){ toast('Choose B, C or D'); return; }
+  const note=($('rpnote').value||'').trim(); if(!note){ toast('Describe the problem'); return; }
+  const mv=LOG.find(x=>x.id===mid);
+  if(!mv||mv.status!=='PENDING'||String(mv.techId)!==String(ME.id)){ toast('The store keeper already received it — tell him directly'); techStart(); return; }
+  window.DB.update(mid,{cin:RP,note}).catch(saveErr);
+  mv.cin=RP; mv.note=note;
+  toast('Problem saved — the store keeper will see it'); retDone(mid);
 }
 
 // after gate: take many tools
@@ -919,7 +1063,7 @@ function techToolList(){
     <button class="btn ghost" onclick="manualScreen('tech')" style="margin-bottom:10px">&#9998; Tool not in list — type it</button>
     <button class="btn ghost" onclick="scanTool()" style="margin-bottom:14px">▦ Scan tool QR</button>
     <div class="card" id="results" style="padding:6px 14px"></div>
-    <button class="btn primary" onclick="techGate()" style="margin-top:14px">Done — leave</button>`;
+    <button class="btn primary" onclick="techStart()" style="margin-top:14px">Done — leave</button>`;
   paintMine();
   tsearch();
 }
@@ -1003,7 +1147,7 @@ function scanTool(){
 let CUR=null;
 function openTool(tid,unit){
   if(!LOADED){toast('Loading the tool data \u2014 one moment');return;}
-  CUR=tid; CUR_U=unit||null;
+  CUR=tid; CUR_U=unit||null; U_SCAN=!!unit;
   const N=pcNof(tid);
   if(N){                                   // piece tool
     const mine=myMove(tid);
@@ -1017,7 +1161,7 @@ function openTool(tid,unit){
   if(unitsOf(tid)>1){                      // a tool with pieces A / B / C
     const mine=myMove(tid);
     if(mine){
-      if(unit&&mine.unit&&unit!==mine.unit){ toast((mine.status==='REQ'?'You asked for ':'You have ')+tid+'-'+mine.unit+' \u2014 this sticker is '+tid+'-'+unit); CUR_U=null; }
+      if(unit&&mine.unit&&unit!==mine.unit){ toast((mine.status==='REQ'?'You asked for ':'You have ')+tid+'-'+mine.unit+' \u2014 this sticker is '+tid+'-'+unit); CUR_U=null; U_SCAN=false; }
       if(mine.status==='OUT') return returnScreen(tid,mine);
       if(mine.status==='REQ') return reqScreen(tid,mine);
       return pendingScreen(tid,mine);
@@ -1035,7 +1179,7 @@ function reqScreen(tid,m){
   TV='status';TVSIG=tvSig(tid);
   const t=toolOr(tid);const mine=m.techId===ME.id;setTitle('Waiting hand over',t[T_ID]);
   $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button>
-    <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t)}</div></div>${unitLine(m)}
+    <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t,1)}</div></div>${unitLine(m)}
     <div class="alert warn">${mine?'<b>You requested this tool.</b><br>The store keeper must hand it over and accept before it is yours.':'<b>Requested by '+esc(m.tech)+'.</b><br>Waiting for the store keeper to hand it over.'}</div>
     <div class="card"><div class="kv"><span class="k">Requested by</span><span class="v">${esc(m.tech)}</span></div>
       <div class="kv"><span class="k">Section</span><span class="v">${esc(m.sec)}</span></div>
@@ -1052,7 +1196,7 @@ function outWithScreen(tid,m){
   const t=toolOr(tid);setTitle('Tool is out',t[T_ID]);
   const over=isOverdue(m);
   $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button>
-    <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t)}</div></div>${unitLine(m)}
+    <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t,1)}</div></div>${unitLine(m)}
     <div class="alert ${over?'red':'warn'}"><b>${m.status==='REQ'?'This tool is already requested.':m.status==='PENDING'?'This tool is coming back.':'This tool is already out.'}</b><br>You cannot take it until it is back in store.</div>
     <div class="card"><div class="kv"><span class="k">Taken by</span><span class="v">${esc(m.tech)}</span></div>
       <div class="kv"><span class="k">Section</span><span class="v">${esc(m.sec)} — ${SEC_FULL[m.sec]||''}</span></div>
@@ -1066,19 +1210,19 @@ function pendingScreen(tid,m){
   TV='status';TVSIG=tvSig(tid);
   const t=toolOr(tid);setTitle('Tool returning',t[T_ID]);
   $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button>
-    <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t)}</div></div>${unitLine(m)}
+    <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t,1)}</div></div>${unitLine(m)}
     <div class="alert info"><b>Just returned by ${esc(m.tech)}.</b><br>Waiting for the store keeper to confirm. Available again after that.</div>
     <button class="btn ghost" onclick="techToolList()">Back to tools</button>`;
 }
 
 function takeScreen(tid){
   TV='input';
-  const t=toolOr(tid);setTitle('Take tool',t[T_ID]);
+  const t=toolOr(tid);setTitle('Take tool',t[T_ID]+(U_SCAN&&CUR_U?'-'+CUR_U:''));
   const N=pcN(t), free=N?freePcs(tid):0;
   const isSet=t[T_TYPE]==='Set';const items=(t[T_SET]||'').split(',').map(s=>s.trim()).filter(Boolean);
   PK={mode:null,n:0,N:N};
   const head=`<button class="back" onclick="techToolList()">\u2039 Back</button>
-    <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t)}</div></div>
+    <div class="card detail"><div class="tid">${t[T_ID]}${U_SCAN&&CUR_U?'-'+CUR_U:''}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t,1)}</div></div>
     <div class="card"><div class="kv"><span class="k">Taken by</span><span class="v">${esc(ME.name)}</span></div><div class="kv"><span class="k">Section \u00b7 ID</span><span class="v">${esc(ME.sec)} \u00b7 ${esc(ME.id)}</span></div><div class="kv"><span class="k">Time</span><span class="v">now (auto)</span></div></div>`;
   const dmg0=dmgOf(tid);   // a damage report on any piece of this number is shown
   const head2=dmg0?`<div class="alert red"><b>Open damage report${dmg0.unit?' on piece '+dmg0.unit:''}: ${esc(GRADE_WORD[dmg0.cin]||'Damaged')}.</b><br>${dmg0.note?esc(dmg0.note)+'<br>':''}Check it with the store keeper before you take it.</div>`:'';
@@ -1101,7 +1245,8 @@ function takeScreen(tid){
   }
   const U=unitsOf(tid);
   $('view').innerHTML=head+head2+`
-    ${U>1?(()=>{ const tk=unitTaken(tid); if(CUR_U&&tk.has(CUR_U)) CUR_U=null;
+    ${U>1?(()=>{ const tk=unitTaken(tid); if(CUR_U&&tk.has(CUR_U)){ CUR_U=null; U_SCAN=false; }
+      if(U_SCAN&&CUR_U) return `<div class="card upick" id="uScan"><span class="ubig">${CUR_U}</span><div><b>Piece ${CUR_U}</b><small>From the sticker you scanned \u00b7 ${esc(tid)}-${CUR_U}</small></div></div>`;
       return `<div class="card"><div class="pcbar"><b>${unitsFree(tid)}</b> of ${U} in store right now${unitsFree(tid)<U?` \u00b7 <span style="color:var(--amber)">${U-unitsFree(tid)} out</span>`:''}</div>
       <h3 style="margin:16px 0 8px">Which piece? Look at the letter on the sticker</h3>
       <div class="ubtns">${unitLetters(tid).map(l=>{ const f=!tk.has(l); return `<button class="ubtn ${CUR_U===l?'on':''}" data-u="${l}" ${f?'':'disabled'} onclick="pickU('${l}')">${l}<small>${f?'In store':'Out'}</small></button>`; }).join('')}</div>
@@ -1151,6 +1296,7 @@ function pkCheck(){
 let TAKE_AT=0, TAKE_KEY='';
 async function doTake(){
   if(TAKE_KEY===ME.id+'|'+CUR && Date.now()-TAKE_AT<1500) return;   // a double tap must never make two requests
+  { const od=overdueHeld(ME.id); if(od.length){ toast('Return your overdue tool first'); overdueBlock(od); return; } }
   const t=toolById(CUR);let items='',full=false,pcs=0;
   const N=pcN(t);
   if(myMove(CUR)){toast(N?'You already hold pieces of this set':'You already have this tool');openTool(CUR);return;}
@@ -1158,7 +1304,7 @@ async function doTake(){
   const UU=N?1:unitsOf(CUR);
   if(UU>1){
     if(!CUR_U||!unitLetters(CUR).includes(CUR_U)){toast('Tap the piece letter (A, B\u2026) \u2014 look at the sticker');return;}
-    if(unitTaken(CUR).has(CUR_U)){toast(CUR+'-'+CUR_U+' was just taken \u2014 choose the other piece');takeScreen(CUR);return;}
+    if(unitTaken(CUR).has(CUR_U)){toast(CUR+'-'+CUR_U+' was just taken \u2014 choose the other piece');U_SCAN=false;takeScreen(CUR);return;}
   }
   if(N){                                   // the hard rule lives here
     if(!PK.mode){toast('Choose full set or pieces');return;}
@@ -1190,7 +1336,7 @@ function returnScreen(tid,m){
     <div class="actban ret"><span class="ar">↓</span> You are returning a tool</div>
     ${m.rejBy?`<div class="alert red"><b>${esc(m.rejBy)} did not accept your return.</b><br>Check the tool and return it again.</div>`:''}
     <div class="alert warn"><b>You have this tool${m.unit?' \u2014 PIECE '+m.unit:''}</b> · taken ${fmtTime(m.out)}${m.unit?'<br>Return the piece with sticker <b>'+esc(m.tid)+'-'+m.unit+'</b>':''}</div>
-    <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'')}</div><div class="meta">${meta(t)}</div>${m.items?`<div class="kv" style="margin-top:10px"><span class="k">Pieces taken</span><span class="v">${esc(m.items)}</span></div>`:''}</div>
+    <div class="card detail"><div class="tid">${t[T_ID]}${m.unit?'-'+m.unit:''}</div><div class="tname">${esc(t[T_NAME]||'')}</div><div class="meta">${meta(t,1)}</div>${m.items?`<div class="kv" style="margin-top:10px"><span class="k">Pieces taken</span><span class="v">${esc(m.items)}</span></div>`:''}</div>
     <div class="card"><h3>Condition on return</h3><div class="grades" id="grades">
       <button class="grade" data-g="A" onclick="sg('A')">A<small>Good</small></button><button class="grade" data-g="B" onclick="sg('B')">B<small>Defect</small></button>
       <button class="grade" data-g="C" onclick="sg('C')">C<small>Damaged</small></button><button class="grade" data-g="D" onclick="sg('D')">D<small>Missing</small></button></div>
@@ -1315,7 +1461,7 @@ function unitsFree(tid){ return Math.max(0,unitsOf(tid)-openMovesOf(tid).length)
    A tool with 2-3 pieces under one number has one sticker per piece: 1110-A, 1110-B, 1110-C.
    The letter on the sticker is the mark - the record says WHICH piece a man has. */
 const UL=['A','B','C','D','E','F'];
-let CUR_U=null, NP_U=null;
+let CUR_U=null, NP_U=null, U_SCAN=false;
 function unitLetters(tid){ const U=unitsOf(tid); return U>1?UL.slice(0,U):[]; }
 function unitTaken(tid){ return new Set(openMovesOf(tid).map(m=>m.unit).filter(Boolean)); }
 function freeLetters(tid){ const tk=unitTaken(tid); return unitLetters(tid).filter(l=>!tk.has(l)); }
@@ -2295,6 +2441,7 @@ function npConfirm(){
   curStoreView=null; setTitle('Confirm','Issue without phone');
   $('view').innerHTML=`<button class="back" onclick="npPickTool()">&lsaquo; Change tool</button>
     <div class="actban take"><span class="ar">&uarr;</span> Giving a tool <span class="sm2">no phone</span></div>
+    ${NP_TECH&&keeperBlockFor(NP_TECH.id)?`<div class="alert red"><b>Cannot give a new tool.</b><br>${esc(keeperBlockFor(NP_TECH.id))}</div>`:''}
     <div class="card detail"><div class="tid">${t[T_ID]}</div>
       <div class="tname">${esc(t[T_NAME]||'(no name)')}</div>
       <div class="meta">${meta(t)}</div></div>
@@ -2315,6 +2462,7 @@ function npConfirm(){
 async function npIssue(){
   if(!NP_TECH||!NP_TOOL) return;
   if(!requireKeeper()) return;
+  { const tb=keeperBlockFor(NP_TECH.id); if(tb){ toast(tb); return; } }
   if(!npFree(NP_TOOL)){ toast('That tool is not in store'); npPickTool(); return; }
   if(LOG.some(x=>x.kind==='TOOL'&&x.tid===NP_TOOL&&x.status!=='IN'&&String(x.techId)===String(NP_TECH.id))){ toast('He already has this tool'); npPickTool(); return; }
   const NPU=unitsOf(NP_TOOL)>1;
@@ -2371,6 +2519,7 @@ async function npDoReturn(id){
 function switchKeeper(){ KEEPER=null; curStoreView=null; pinScreen(); }
 /* the store keeper's last check before a tool leaves: is it really free? */
 function reqBlock(m){
+  { const tb=keeperBlockFor(m.techId); if(tb) return tb; }
   const N=pcNof(m.tid);
   const others=LOG.filter(x=>x.kind==='TOOL'&&x.tid===m.tid&&x.id!==m.id&&(x.status==='OUT'||x.status==='PENDING'));
   if(!N){ const U=unitsOf(m.tid);
