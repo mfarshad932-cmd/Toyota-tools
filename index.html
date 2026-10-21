@@ -826,10 +826,10 @@ function go(where){
 
 function fmtTime(iso){if(!iso)return '—';const d=new Date(iso);return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});}
 function ago(iso){if(!iso)return '\u2014';const ms=Math.max(0,Date.now()-new Date(iso).getTime());const h=Math.floor(ms/3.6e6),m=Math.floor(ms/6e4)%60;if(h>=48){const d=Math.floor(h/24);return d+'d '+(h%24)+'h';}return h>0?h+'h '+m+'m':m+'m';}
-const OVERDUE_H=168, DUE_H=72, LIMIT_TXT='7 days';      /* return within 7 days; warning after 3 days */
+const OVERDUE_H=2, DUE_H=1, LIMIT_TXT='2 hours', DUE_TXT='1 hour';      /* TEST limit (v27): overdue after 2 h, warning after 1 h. Real plan: 168 / 72 / '7 days' / '3 days' */
 function heldMs(m){ return Date.now()-new Date(m.out).getTime(); }
 function isDueSoon(m){ return m.status==='OUT'&&!!m.out&&heldMs(m)>DUE_H*3.6e6&&heldMs(m)<=OVERDUE_H*3.6e6; }
-function leftTxt(m){ const ms=OVERDUE_H*3.6e6-heldMs(m); if(ms<=0) return 'overdue';
+function leftTxt(m){ const ms=OVERDUE_H*3.6e6-heldMs(m); if(ms<=0) return 'overdue'; if(ms<3.6e6) return Math.ceil(ms/6e4)+' min left';
   const H=Math.ceil(ms/3.6e6), d=Math.floor(H/24), h=H%24; return d>=1?d+' day'+(d>1?'s':'')+(h?' '+h+' h':'')+' left':H+' h left'; }
 const dueBadge=m=>'<span class="badge pend">Return soon · '+leftTxt(m)+'</span>';
 function isOverdue(m){return m.status==='OUT'&&(Date.now()-new Date(m.out).getTime())>OVERDUE_H*3.6e6;}
@@ -1762,7 +1762,7 @@ function dash(){
     ${c.reqs?`<div class="alert warn" onclick="stab('requests')" style="cursor:pointer"><b>TAKE — ${c.reqs} tool${c.reqs>1?'s':''}</b> waiting for you to hand over ›</div>`:''}
     ${c.pending?`<div class="alert warn" onclick="stab('pending')" style="cursor:pointer"><b>RETURN — ${c.pending} tool${c.pending>1?'s':''}</b> waiting for you to receive ›</div>`:''}
     ${c.overdue?`<div class="alert red" id="odAlert" onclick="stab('overdue')" style="cursor:pointer"><b>OVERDUE — ${c.overdue} tool${c.overdue>1?'s':''}</b> kept more than ${LIMIT_TXT} ›</div>`:''}
-    ${c.due?`<div class="alert warn" id="dueAlert" onclick="stab('due')" style="cursor:pointer"><b>⚠ DUE SOON — ${c.due} tool${c.due>1?'s':''}</b> out more than 3 days · tell the technician ›</div>`:''}
+    ${c.due?`<div class="alert warn" id="dueAlert" onclick="stab('due')" style="cursor:pointer"><b>⚠ DUE SOON — ${c.due} tool${c.due>1?'s':''}</b> out more than ${DUE_TXT} · tell the technician ›</div>`:''}
     <button class="btn primary livebtn" onclick="stab('all')">
       <span class="lt1">&#128736;&nbsp; LIVE TOOLS</span>
       <span class="lt2">all ${c.total} tools &middot; ${c.tIn} in store &middot; ${c.tOut} out${c.tOver?' &middot; '+c.tOver+' overdue':''}${c.tDmg?' &middot; '+c.tDmg+' damaged':''}</span>
@@ -2324,7 +2324,7 @@ const REP_SUBJ=[
   ['problems','Problem technicians','Who made mistakes this month, worst first',d=>d.problemTechs.length,'red'],
   ['alerts','Cheat & mistake alerts','Every suspicious or wrong action, newest first',d=>d.alerts.length,'red'],
   ['overdue','Overdue now','Tools still with a technician past '+LIMIT_TXT,d=>d.overdue.length,'red'],
-  ['due','Due soon (warning)','Out more than 3 days - must come back before '+LIMIT_TXT,d=>d.dueSoon.length,'amber'],
+  ['due','Due soon (warning)','Out more than '+DUE_TXT+' - must come back before '+LIMIT_TXT,d=>d.dueSoon.length,'amber'],
   ['late','Late returns','Came back after more than '+LIMIT_TXT,d=>d.late.length,'amber'],
   ['cond','Return condition A / B / C / D','Every return this month: Good, Defect, Damaged or Missing - who, when, received by',d=>d.conds.length,''],
   ['damage','Damaged & missing','Reported not good, with the reason and if it was replaced',d=>d.dmg.length,'red'],
@@ -2470,8 +2470,8 @@ function downloadReport(key){
   push('TOOL STORE - MONTHLY REPORT');
   push('Month',monthLabel(key)); push('Generated',new Date().toLocaleString('en-GB')); push('');
   push('SUMMARY');
-  push('Return limit',LIMIT_TXT+' (warning after 3 days)');
-  push('Tools taken',d.takenM.length); push('Returned',d.returned.length); push('Overdue now',d.overdue.length); push('Due soon (out more than 3 days)',d.dueSoon.length); push('Late returns',d.late.length);
+  push('Return limit',LIMIT_TXT+' (warning after '+DUE_TXT+')');
+  push('Tools taken',d.takenM.length); push('Returned',d.returned.length); push('Overdue now',d.overdue.length); push('Due soon (out more than '+DUE_TXT+')',d.dueSoon.length); push('Late returns',d.late.length);
   push('Damaged / defect / missing',d.dmg.length); push('Returns not accepted',d.rejects.length); push('Handed in late to store keeper',d.slowIn.length);
   push('ID typed (not scanned)',d.typed.length); push('Came without phone',d.noPhone.length); push('Cabin visits',d.entries.length); push('Alerts in total',d.alerts.length); push('');
   push('PROBLEM TECHNICIANS (worst first)');
@@ -2488,7 +2488,7 @@ function downloadReport(key){
   push('Tool','Piece','Tool name','Condition','Technician','ID','Section','Returned','Received','Received by','Note');
   d.conds.forEach(m=>push(m.tid,m.unit||'',repToolName(m.tid),m.cin+' - '+GRADE_FULL[m.cin],m.tech,m.techId||'',m.sec,fmtTime(m.ret),m.status==='IN'?fmtTime(m.recvAt||m.ret):'waiting',m.inBy||'',m.note||''));
   push('');
-  push('DUE SOON (warning - out more than 3 days)');
+  push('DUE SOON (warning - out more than '+DUE_TXT+')');
   push('Tool','Piece','Tool name','Technician','ID','Section','Taken','Out for','Time left');
   d.dueSoon.forEach(m=>push(m.tid,m.unit||'',repToolName(m.tid),m.tech,m.techId||'',m.sec,fmtTime(m.out),ago(m.out),leftTxt(m)));
   push('');
