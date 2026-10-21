@@ -365,6 +365,14 @@ button.btn[disabled]{opacity:.42;pointer-events:none}
 .livebtn .lt2{opacity:.95}
 .idcard .meta{opacity:.9}
 .top .sub{opacity:.85}
+/* v26: the 4 return conditions */
+.badge.gA{background:var(--greenbg);color:var(--green);border:1px solid #D8E7E0}
+.badge.gB{background:var(--amberbg);color:var(--amber);border:1px solid #EFE2C6}
+.badge.gC{background:var(--redbg);color:var(--red);border:1px solid #F2DCD8}
+.badge.gD{background:#7A1E16;color:#fff;border:1px solid #7A1E16}
+.rp-cg{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:6px 0 10px}
+.rp-cg div{border:1px solid var(--line);border-radius:12px;padding:12px}
+.rp-cg b{font-family:var(--mono);font-size:24px;display:block}.rp-cg small{display:block;font-size:12px;color:#2A323D;margin-top:4px;line-height:1.35}
 /* v25: monthly report */
 .rp-row{display:flex;align-items:center;gap:10px;width:100%;padding:13px 14px;border:0;border-bottom:1px solid var(--hair);background:none;text-align:left;font:inherit;color:var(--ink);cursor:pointer}
 .rp-row:last-child{border-bottom:0}.rp-row:active{background:#F1F3F6}
@@ -817,8 +825,13 @@ function go(where){
 }
 
 function fmtTime(iso){if(!iso)return '—';const d=new Date(iso);return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});}
-function ago(iso){if(!iso)return '\u2014';const ms=Math.max(0,Date.now()-new Date(iso).getTime());const h=Math.floor(ms/3.6e6),m=Math.floor(ms/6e4)%60;return h>0?h+'h '+m+'m':m+'m';}
-const OVERDUE_H=8;
+function ago(iso){if(!iso)return '\u2014';const ms=Math.max(0,Date.now()-new Date(iso).getTime());const h=Math.floor(ms/3.6e6),m=Math.floor(ms/6e4)%60;if(h>=48){const d=Math.floor(h/24);return d+'d '+(h%24)+'h';}return h>0?h+'h '+m+'m':m+'m';}
+const OVERDUE_H=168, DUE_H=72, LIMIT_TXT='7 days';      /* return within 7 days; warning after 3 days */
+function heldMs(m){ return Date.now()-new Date(m.out).getTime(); }
+function isDueSoon(m){ return m.status==='OUT'&&!!m.out&&heldMs(m)>DUE_H*3.6e6&&heldMs(m)<=OVERDUE_H*3.6e6; }
+function leftTxt(m){ const ms=OVERDUE_H*3.6e6-heldMs(m); if(ms<=0) return 'overdue';
+  const H=Math.ceil(ms/3.6e6), d=Math.floor(H/24), h=H%24; return d>=1?d+' day'+(d>1?'s':'')+(h?' '+h+' h':'')+' left':H+' h left'; }
+const dueBadge=m=>'<span class="badge pend">Return soon · '+leftTxt(m)+'</span>';
 function isOverdue(m){return m.status==='OUT'&&(Date.now()-new Date(m.out).getTime())>OVERDUE_H*3.6e6;}
 function isToday(iso){if(!iso)return false;const d=new Date(iso),n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();}
 function openMove(tid){for(let i=0;i<LOG.length;i++){if(LOG[i].kind==='TOOL'&&LOG[i].tid===tid&&LOG[i].status!=='IN')return LOG[i];}return null;}
@@ -953,7 +966,7 @@ function keeperBlockFor(id){
 function heldRows(ms,click){
   return ms.map(m=>{ const t=toolOr(m.tid), od=isOverdue(m);
     return `<div class="toolrow"${click?` onclick="${click}('${m.id}')"`:''}><div class="id">${esc(mvTag(m))}</div>
-      <div class="nm">${esc(t[T_NAME]||'(no name)')} ${od?'<span class="badge out">Overdue '+ago(m.out)+'</span>':'<span class="badge" style="background:var(--bluebg);color:var(--blue)">With you</span>'}<small>Taken ${fmtTime(m.out)}</small>${m.items?`<small>Pieces: ${esc(m.items)}</small>`:''}${m.rejBy?`<small style="color:var(--red);font-weight:800">${esc(m.rejBy)} did not accept your return — check the tool</small>`:''}</div>
+      <div class="nm">${esc(t[T_NAME]||'(no name)')} ${od?'<span class="badge out">Overdue '+ago(m.out)+'</span>':isDueSoon(m)?dueBadge(m):'<span class="badge" style="background:var(--bluebg);color:var(--blue)">With you</span>'}<small>Taken ${fmtTime(m.out)} · ${ago(m.out)} ago</small>${m.items?`<small>Pieces: ${esc(m.items)}</small>`:''}${m.rejBy?`<small style="color:var(--red);font-weight:800">${esc(m.rejBy)} did not accept your return — check the tool</small>`:''}</div>
       ${click?'<div class="go">›</div>':''}</div>`; }).join('');
 }
 let TS_SIG='';
@@ -974,7 +987,8 @@ function techStart(){
   $('view').innerHTML=`
     <div class="idcard"><div class="nm">${esc(ME.name)}</div><div class="meta">ID ${esc(ME.id)} · ${esc(ME.sec)} — ${SEC_FULL[ME.sec]||''}</div></div>
     <div class="card" style="padding:6px 14px"><h3 style="margin:12px 4px 4px">Tools with you (${out.length})</h3>${heldRows(out)}</div>
-    ${od.length?`<div class="alert red"><b>Overdue: ${esc(od.map(mvTag).join(', '))}</b><br>Return it first — then you can take new tools.</div>`:''}
+    ${od.length?`<div class="alert red"><b>Overdue: ${esc(od.map(mvTag).join(', '))}</b><br>Kept more than ${LIMIT_TXT}. Return it first — then you can take new tools.</div>`:''}
+    ${out.filter(isDueSoon).map(m=>`<div class="alert warn" id="dueWarn"><b>⚠ Return soon: ${esc(mvTag(m))} ${esc(toolOr(m.tid)[T_NAME]||'')}</b><br>Taken ${fmtTime(m.out)} · with you ${ago(m.out)} · <b>${leftTxt(m)}</b> to return it. After ${LIMIT_TXT} you cannot take new tools.</div>`).join('')}
     <button class="btn choice take" id="btnTake" onclick="techTake()">TAKE TOOLS<small>${od.length?'Blocked — return the overdue tool first':'Scan the cabin QR'}</small></button>
     <button class="btn choice ret" id="btnRet" onclick="retCam()">RETURN TOOLS<small>Scan the tool — no cabin scan</small></button>`;
 }
@@ -983,7 +997,7 @@ function overdueBlock(od){
   stopScanner(); GATE=false; TV='block';
   setTitle('Return first','You have an overdue tool');
   $('view').innerHTML=`<button class="back" onclick="techStart()">‹ Back</button>
-    <div class="alert red"><b>You cannot take new tools now.</b><br>This tool is overdue (more than ${OVERDUE_H} hours). Return it first.</div>
+    <div class="alert red"><b>You cannot take new tools now.</b><br>This tool is overdue (kept more than ${LIMIT_TXT}). Return it first.</div>
     <div class="card" style="padding:6px 14px">${heldRows(od)}</div>
     <button class="btn green" id="btnRetNow" onclick="retCam()">Return now — scan the tool</button>`;
 }
@@ -1093,7 +1107,7 @@ function paintMine(){
     let b,sub;
     if(m.status==='REQ'){b='<span class="badge pend">Take · waiting</span>';sub='Waiting for the store keeper to hand it over';}
     else if(m.status==='PENDING'){b='<span class="badge pend">Return · waiting</span>';sub='Waiting for the store keeper to receive it';}
-    else{b=isOverdue(m)?'<span class="badge out">Overdue</span>':'<span class="badge" style="background:var(--bluebg);color:var(--blue)">With you</span>';sub='Taken '+fmtTime(m.out)+' · tap to return';}
+    else{b=isOverdue(m)?'<span class="badge out">Overdue</span>':isDueSoon(m)?dueBadge(m):'<span class="badge" style="background:var(--bluebg);color:var(--blue)">With you</span>';sub='Taken '+fmtTime(m.out)+' · tap to return';}
     return `<div class="toolrow" onclick="openTool('${t[T_ID]}')"><div class="id">${t[T_ID]}</div>
       <div class="nm">${esc(t[T_NAME]||'(no name)')} ${b}${m.unit?`<small style="color:var(--ink);font-weight:800">Piece ${m.unit} \u00b7 sticker ${esc(m.tid)}-${m.unit}</small>`:''}<small>${sub}</small>${m.items?`<small>Pieces: ${esc(m.items)}</small>`:''}${m.status==='OUT'&&m.rejBy?`<small style="color:var(--red);font-weight:700">${esc(m.rejBy)} did not accept your return — return it again</small>`:''}</div>
       <div class="go">›</div></div>`;
@@ -1417,33 +1431,46 @@ async function doAddManual(){
 }
 
 /* ---- QR scanner control ---- */
-/* ===================== v25 CAMERA - never a black box =====================
-   Old cause of the black box: a new camera was started while the old one was still closing,
-   and the old camera's clean-up then wiped the new camera's picture (same "reader" box).
-   Now:
-   1. one camera at a time - a new camera waits until the old one is fully closed;
+/* ===================== v26 CAMERA - always on, never black, never frozen =====================
+   1. one camera at a time: every start and every stop goes through one queue, and a camera that is
+      still starting is switched off as soon as it comes up - two cameras can never fight;
    2. every camera gets its own fresh box, so an old clean-up can never touch it;
-   3. start / stop can never hang the app (time limit), so the next camera always gets its turn;
-   4. the picture is checked every 3.5 s while the camera runs - no live picture = restart by itself,
-      and if that does not help = clear message + RESTART CAMERA button (+ the screen's own advice);
-   5. phone screen off / app switched = camera off; back on the page = camera on again. */
-let CAM_Q=Promise.resolve(), CAM_GEN=0, CAM_CB=null, CAM_WD=null, CAM_PAUSED=null, CAM_AUTO=0, CAM_BUSY_TRY=0;
-const CAM_START_MS=7000, CAM_STOP_MS=3000, CAM_CHECK_MS=3500;
+   3. start / stop have a time limit, so one stuck camera never blocks the next;
+   4. the REAL PICTURE is checked every 3 s (after a short warm-up): black, no picture or frozen
+      (no new frames) two checks in a row = the camera is restarted by itself;
+   5. phones with 2-4 back lenses: a lens that never shows a picture is skipped and the next BACK lens
+      is tried (never the selfie camera); the lens that really reads a QR is remembered on this phone;
+   6. ALWAYS ON: while a scan screen is open, a guard checks every 2 s that a camera is running -
+      after the home screen / another app / screen off, the camera comes back by itself;
+   7. if it truly cannot work: a clear message + RESTART CAMERA button (+ the screen's own advice),
+      and never more than 4 automatic restarts a minute (no endless flicker). */
+let CAM_Q=Promise.resolve(), CAM_GEN=0, CAM_CB=null, CAM_WD=null, CAM_WANT=null, CAM_STARTING=0, CAM_MSGKIND='';
+const camDone=g=>{ if(CAM_STARTING===g) CAM_STARTING=0; };   /* 'starting' belongs to one start only */
+let CAM_FAILS=0, CAM_BUSY_TRY=0, CAM_TRIED=[], CAM_CUR='', CAM_FR=-1, CAM_CT=-1, CAM_SAME=0, CAM_GOOD=0, CAM_BAD=0, CAM_RESTARTS=[];
+const CAM_START_MS=10000, CAM_STOP_MS=4000, CAM_WARM_MS=4000, CAM_CHECK_MS=3000, CAM_MAX_FAILS=5;
+const CAM_IOS=/iPhone|iPad|iPod/i.test(navigator.userAgent||'')||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const camSaved=v=>{ try{ if(v===undefined) return localStorage.getItem('camLens')||''; if(v) localStorage.setItem('camLens',v); else localStorage.removeItem('camLens'); }catch(e){} return ''; };
 function camBox(){ return $('reader'); }
 function camLimit(p,ms){ return Promise.race([p,new Promise((_,no)=>setTimeout(()=>no(Object.assign(new Error('camera timeout'),{name:'Timeout'})),ms))]); }
+function camMsgOn(){ const cf=$('camfail'); return !!(cf&&cf.style.display==='block'&&cf.querySelector('#camRetry')); }
 function camMsg(kind){
-  const box=camBox(); if(!box) return;
+  const box=camBox(); if(!box) return; CAM_MSGKIND=kind;
   box.style.display='none';                         /* no empty black box above the message */
   let cf=$('camfail');
   if(!cf){ cf=document.createElement('div'); cf.id='camfail'; cf.className='scanhint'; box.insertAdjacentElement('afterend',cf); }
-  const txt=kind==='denied'?'Camera permission is blocked. In Chrome tap the lock icon next to the address → Permissions → Camera → Allow, then press Restart camera.'
+  const allow=CAM_IOS?'On iPhone: Settings → Safari → Camera → Allow, then press Restart camera.'
+                     :'In Chrome tap the lock icon next to the address → Permissions → Camera → Allow, then press Restart camera.';
+  const txt=kind==='denied'?'Camera permission is blocked. '+allow
           :kind==='busy'?'Another app is using the camera. Close it (WhatsApp, camera app…) and press Restart camera.'
           :kind==='none'?'This phone has no camera that the browser can use.'
+          :kind==='black'?'The camera picture stays black. Make sure nothing covers the camera and there is light, then press Restart camera.'
+          :kind==='nolib'?'The camera part of the page did not load (weak internet). Press Reload.'
+          :kind==='nosupport'?'This browser cannot open the camera. Open the link in Chrome (Android) or Safari (iPhone).'
           :'The camera did not start. Press Restart camera.';
   if(cf.dataset.hint===undefined){ const d0=cf.querySelector('.d'); cf.dataset.hint=d0?d0.textContent:''; }   /* the screen's own advice (type ID / tap the list) */
   const hint=cf.dataset.hint;
   cf.innerHTML=`<div class="qic">📷</div><div class="t">Camera not working</div><div class="d">${txt}</div>${hint?`<div class="d" style="margin-top:6px">${esc(hint)}</div>`:''}
-    <button class="btn primary" id="camRetry" style="margin-top:12px" onclick="camRestart()">Restart camera</button>`;
+    <button class="btn primary" id="camRetry" style="margin-top:12px" onclick="camRestart()">${kind==='nolib'?'Reload':'Restart camera'}</button>`;
   cf.style.display='block';
 }
 function camHideMsg(){ const cf=$('camfail'); if(cf&&cf.querySelector('#camRetry')) cf.style.display='none'; const b=camBox(); if(b) b.style.display=''; }
@@ -1452,63 +1479,148 @@ function camKind(e){ const n=String(e&&(e.name||e)||'')+' '+String(e&&e.message|
   if(/NotReadable|TrackStart|in use|busy|Could not start/i.test(n)) return 'busy';
   if(/NotFound|DevicesNotFound|Overconstrained/i.test(n)) return 'none';
   return 'fail'; }
-/* close the current camera; the next camera waits for this to finish (never longer than 3 s) */
-function stopScanner(){
-  CAM_GEN++; clearTimeout(CAM_WD); CAM_WD=null;
-  const sc=scanner; scanner=null;
-  if(sc){ CAM_Q=CAM_Q.then(()=>camLimit(Promise.resolve().then(()=>sc.stop()),CAM_STOP_MS).catch(()=>{})).then(()=>{ try{ sc.clear(); }catch(e){} }).catch(()=>{}); }
+/* the back lenses of this phone - read from the browser's device list (no extra camera is opened) */
+async function camBackLenses(){
+  let all=[];
+  try{ const d=await camLimit(navigator.mediaDevices.enumerateDevices(),2500); all=d.filter(x=>x.kind==='videoinput').map(x=>({id:x.deviceId,label:x.label||''})); }catch(e){}
+  if(!all.length||!all.some(c=>c.label)){ try{ all=(await camLimit(Html5Qrcode.getCameras(),3000))||[]; }catch(e){ all=[]; } }
+  const FRONT=/front|user|selfie|facetime|أمام|الأمامية/i, BACK=/back|rear|environment|traseira|arrière|خلف/i;
+  const back=all.filter(c=>BACK.test(c.label));
+  return (back.length?back:all.filter(c=>!FRONT.test(c.label))).map(c=>c.id).filter(Boolean);
+}
+/* switch one camera off - waits for a camera that is still starting, never longer than the time limit */
+function camKill(sc,startP){
+  CAM_Q=CAM_Q.then(()=>camLimit(Promise.resolve(startP).catch(()=>{}).then(()=>sc.stop()),CAM_STOP_MS).catch(()=>{})).then(()=>{ try{ sc.clear(); }catch(e){} }).catch(()=>{});
   return CAM_Q;
 }
-function startScanner(onOk){ CAM_AUTO=0; CAM_BUSY_TRY=0; camStart(onOk); }
-function camStart(onOk){
-  stopScanner();
-  const gen=++CAM_GEN; CAM_CB=onOk; CAM_PAUSED=null;
+let CAM_STARTP=null;
+function camOff(){                                  /* camera off, but the screen still wants it (background) */
+  CAM_GEN++; clearTimeout(CAM_WD); CAM_WD=null;
+  const sc=scanner, sp=CAM_STARTP; scanner=null; CAM_STARTP=null;
+  if(sc) camKill(sc,sp);
+  return CAM_Q;
+}
+/* the screen is left: camera off and not wanted any more */
+function stopScanner(){ CAM_WANT=null; return camOff(); }
+function startScanner(onOk){
+  CAM_FAILS=0; CAM_BUSY_TRY=0; CAM_TRIED=[]; CAM_RESTARTS=[];
+  CAM_WANT={cb:onOk,box:camBox()};
+  camStart(onOk,camSaved());
+}
+function camStart(onOk,lens){
+  camOff(); CAM_STARTING=0;
+  const gen=++CAM_GEN; CAM_CB=onOk; CAM_FR=-1; CAM_CT=-1; CAM_SAME=0; CAM_GOOD=0; CAM_BAD=0;
   const box=camBox(); if(!box) return;
-  if(typeof Html5Qrcode==='undefined'){ camMsg('fail'); return; }
-  if(document.hidden){ CAM_PAUSED=onOk; return; }   /* page not on screen: start when he comes back */
+  if(CAM_WANT) CAM_WANT.box=box;
+  if(typeof Html5Qrcode==='undefined'){ camMsg('nolib'); return; }
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ camMsg('nosupport'); return; }
+  if(document.hidden) return;                       /* page not on screen: the guard starts it when he comes back */
+  CAM_STARTING=gen;
   CAM_Q=CAM_Q.then(async()=>{
-    if(gen!==CAM_GEN) return;                        /* he already left this screen */
-    const host=camBox(); if(!host) return;
+    if(gen!==CAM_GEN||document.hidden){ camDone(gen); return; }
+    const host=camBox(); if(!host){ camDone(gen); return; }
     host.style.display=''; host.innerHTML=''; const inner=document.createElement('div'); inner.id='rdr'+gen; host.appendChild(inner);
     let sc;
-    try{ sc=new Html5Qrcode(inner.id); }catch(e){ camMsg('fail'); return; }
-    scanner=sc;
-    try{
-      await camLimit(sc.start({facingMode:'environment'},{fps:10,qrbox:220},txt=>{ if(gen===CAM_GEN&&CAM_CB) CAM_CB(txt); },()=>{}),CAM_START_MS);
-    }catch(e){
-      if(scanner===sc) scanner=null;
-      Promise.resolve().then(()=>sc.stop()).catch(()=>{});          /* a camera that came up late is switched off */
-      if(gen===CAM_GEN){ const k=camKind(e);
-        if((k==='busy'||k==='fail')&&CAM_BUSY_TRY<1){ CAM_BUSY_TRY++; setTimeout(()=>{ if(gen===CAM_GEN) camStart(onOk); },700); }
-        else camMsg(k); }
+    try{ sc=new Html5Qrcode(inner.id); }catch(e){ camDone(gen); camMsg('fail'); return; }
+    scanner=sc; CAM_CUR=lens||'';
+    const onScan=txt=>{ if(gen!==CAM_GEN||!CAM_CB) return; if(CAM_CUR) camSaved(CAM_CUR); CAM_CB(txt); };   /* a lens that READ a QR is the one to remember */
+    const sp=Promise.resolve().then(()=>sc.start(lens?lens:{facingMode:'environment'},{fps:10,qrbox:220},onScan,()=>{}));
+    sp.catch(()=>{});                                 /* a failed start is handled below - never an "uncaught" error */
+    CAM_STARTP=sp;
+    let lim=CAM_START_MS;
+    try{ const pq=await camLimit(navigator.permissions.query({name:'camera'}),600); if(pq&&pq.state==='prompt') lim=60000; }catch(e){}   /* the "Allow camera?" question is open */
+    try{ await camLimit(sp,lim); }
+    catch(e){
+      if(scanner===sc){ scanner=null; CAM_STARTP=null; } camKill(sc,sp);   /* a camera that comes up late is switched off */
+      if(gen!==CAM_GEN){ camDone(gen); return; }
+      const k=camKind(e);
+      if(lens&&k==='none'){ if(lens===camSaved()) camSaved(null); CAM_TRIED.push(lens); setTimeout(()=>camNext(gen,onOk,'fail'),0); return; }   /* that lens is not there - try another (after this job ends) */
+      if((k==='busy'||k==='fail')&&CAM_BUSY_TRY<1){ CAM_BUSY_TRY++; setTimeout(()=>{ if(gen===CAM_GEN) camStart(onOk,lens||''); else camDone(gen); },900); return; }   /* the flag stays on during the wait */
+      camDone(gen); camMsg(k);                         /* the saved lens is kept: the problem is not the lens */
       return;
     }
-    if(gen!==CAM_GEN){ camLimit(Promise.resolve().then(()=>sc.stop()),CAM_STOP_MS).catch(()=>{}).then(()=>{ try{ sc.clear(); }catch(e){} }); return; }
+    camDone(gen);
+    if(gen!==CAM_GEN){ if(scanner===sc){ scanner=null; CAM_STARTP=null; } camKill(sc,sp); return; }
+    /* a lens that turns out to be the selfie camera is never used for scanning */
+    try{ const v=host.querySelector('video'), tr=v&&v.srcObject&&v.srcObject.getVideoTracks()[0], fm=tr&&tr.getSettings?tr.getSettings().facingMode:'';
+      if(lens&&fm==='user'){ if(lens===camSaved()) camSaved(null); CAM_TRIED.push(lens); scanner=null; CAM_STARTP=null; camKill(sc,sp); CAM_STARTING=gen; setTimeout(()=>camNext(gen,onOk,'fail'),0); return; } }catch(e){}
     camHideMsg();
-    CAM_WD=setTimeout(()=>camCheck(gen,onOk),CAM_CHECK_MS);
-  }).catch(()=>{});
+    CAM_WD=setTimeout(()=>camCheck(gen,onOk),CAM_WARM_MS);
+  }).catch(()=>{ camDone(gen); });
 }
-/* is the picture really live? */
-function camLive(){ const v=camBox()&&camBox().querySelector('video');
-  if(!(v&&v.readyState>=2&&v.videoWidth>0&&!v.paused&&!v.ended)) return false;
+/* what the camera really shows: 'ok' / 'black' / 'frozen' / 'dead' */
+const CAM_CV=document.createElement('canvas'); CAM_CV.width=24; CAM_CV.height=18;
+function camLook(peek){                           /* peek = only look, do not count (for screens / tests) */
+  const v=camBox()&&camBox().querySelector('video');
+  if(!(v&&v.readyState>=2&&v.videoWidth>0&&!v.ended)) return 'dead';
   const tr=v.srcObject&&v.srcObject.getVideoTracks?v.srcObject.getVideoTracks()[0]:null;
-  return !tr||(tr.readyState==='live'&&!tr.muted); }
-/* checked again and again while the camera runs - a picture that dies later is caught too */
+  if(tr&&tr.readyState!=='live') return 'dead';
+  if(v.paused&&!peek){ try{ v.play(); }catch(e){} }
+  try{
+    const g=CAM_CV.getContext('2d',{willReadFrequently:true}); g.drawImage(v,0,0,24,18);
+    const px=g.getImageData(0,0,24,18).data; let max=0;
+    for(let i=0;i<px.length;i+=4){ const y=(px[i]*3+px[i+1]*6+px[i+2])/10; if(y>max) max=y; }
+    if(max<14) return 'black';
+  }catch(e){}                                       /* the picture cannot be read on this phone - judge by frames only */
+  /* frozen = the camera stopped sending pictures: frame counter AND clock both stand still */
+  if(peek) return 'ok';
+  const q=v.getVideoPlaybackQuality?v.getVideoPlaybackQuality():null;
+  const fr=q&&q.totalVideoFrames>0?q.totalVideoFrames:-2, ct=Math.round((v.currentTime||0)*1000);
+  if(CAM_CT<0){ CAM_FR=fr; CAM_CT=ct; return 'warm'; }   /* first look: nothing to compare yet */
+  const stuck=ct===CAM_CT&&(fr===-2||fr===CAM_FR);
+  CAM_FR=fr; CAM_CT=ct;
+  if(stuck){ CAM_SAME++; return CAM_SAME>=2?'frozen':'warm'; } CAM_SAME=0;   /* one still picture: not good, not bad yet - look again soon */
+  return 'ok';
+}
+function camLive(){ return camLook(true)==='ok'; }
+function camTooMany(){ const now=Date.now(); CAM_RESTARTS=CAM_RESTARTS.filter(t=>now-t<60000); CAM_RESTARTS.push(now); return CAM_RESTARTS.length>4; }
+/* checked again and again while the camera runs */
 function camCheck(gen,onOk){
   if(gen!==CAM_GEN||!camBox()) return;
   if(document.hidden){ CAM_WD=setTimeout(()=>camCheck(gen,onOk),CAM_CHECK_MS); return; }
-  if(camLive()){ CAM_WD=setTimeout(()=>camCheck(gen,onOk),CAM_CHECK_MS); return; }
-  if(CAM_AUTO<1){ CAM_AUTO++; camStart(onOk); }      /* black picture: restart by itself once */
-  else { stopScanner(); camMsg('fail'); }
+  const st=camLook();
+  if(st==='warm'){ CAM_WD=setTimeout(()=>camCheck(gen,onOk),1500); return; }
+  if(st==='ok'){ CAM_GOOD++; CAM_BAD=0; if(CAM_GOOD>=3) CAM_FAILS=0; CAM_WD=setTimeout(()=>camCheck(gen,onOk),CAM_CHECK_MS); return; }
+  CAM_BAD++;
+  if(CAM_BAD<2){ CAM_WD=setTimeout(()=>camCheck(gen,onOk),1500); return; }      /* one bad look is not enough - look again */
+  if(camTooMany()){ camOff(); camMsg(st==='black'?'black':'fail'); return; }
+  if(CAM_GOOD>0) return camStart(onOk,CAM_CUR);       /* it worked before: same lens, fresh start */
+  CAM_TRIED.push(CAM_CUR||'auto'); if(CAM_CUR&&CAM_CUR===camSaved()) camSaved(null);
+  camOff(); camNext(CAM_GEN,onOk,st==='black'?'black':'fail');   /* never worked: bad lens off, next back lens */
 }
-function camRestart(){ const cb=CAM_CB||CAM_PAUSED; if(!cb||!camBox()) return; CAM_AUTO=0; CAM_BUSY_TRY=0; camHideMsg(); camStart(cb); }
-/* phone screen off / app switched: free the camera, start it again when he comes back */
-document.addEventListener('visibilitychange',()=>{
-  if(document.hidden){ if(scanner&&CAM_CB){ const cb=CAM_CB; stopScanner(); CAM_PAUSED=cb; } }
-  else if(CAM_PAUSED&&camBox()){ const cb=CAM_PAUSED; CAM_PAUSED=null; CAM_AUTO=0; CAM_BUSY_TRY=0; camStart(cb); }
-  else CAM_PAUSED=null;
-});
-window.addEventListener('pagehide',()=>{ stopScanner(); });
+async function camNext(gen,onOk,why){
+  CAM_FAILS++;
+  if(gen!==CAM_GEN) return;
+  if(CAM_FAILS>CAM_MAX_FAILS){ camDone(gen); camOff(); camMsg(why); return; }
+  CAM_STARTING=gen;                                 /* the guard waits while the next lens is chosen */
+  await CAM_Q;                                       /* the old lens is fully off before the list is read */
+  const list=await camBackLenses();
+  if(gen!==CAM_GEN){ camDone(gen); return; }
+  const next=list.find(id=>!CAM_TRIED.includes(id));
+  if(next) return camStart(onOk,next);               /* camStart keeps the flag until the camera is up */
+  if(!CAM_TRIED.includes('auto')) return camStart(onOk,'');
+  camDone(gen); camOff(); camMsg(why);
+}
+function camRestart(){ if(typeof Html5Qrcode==='undefined'){ location.reload(); return; } const w=CAM_WANT; const cb=(w&&w.cb)||CAM_CB; if(!cb||!camBox()) return;
+  CAM_FAILS=0; CAM_BUSY_TRY=0; CAM_TRIED=[]; CAM_RESTARTS=[]; CAM_WANT={cb,box:camBox()}; camHideMsg(); camStart(cb,camSaved()); }
+/* ALWAYS ON: back from the home screen / another app / screen off -> a fresh camera at once */
+function camWake(){
+  const w=CAM_WANT; if(!w||document.hidden) return;
+  const box=camBox(); if(!box||box!==w.box||!document.body.contains(box)){ if(!box||!document.body.contains(w.box)) stopScanner(); return; }
+  if(camMsgOn()){ if(/^(busy|fail|black)$/.test(CAM_MSGKIND)) camRestart(); return; }
+  CAM_FAILS=0; CAM_BUSY_TRY=0; CAM_TRIED=[]; camStart(w.cb,camSaved());
+}
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) camOff(); else camWake(); });
+window.addEventListener('pageshow',e=>{ if(e.persisted) camWake(); });
+window.addEventListener('pagehide',()=>{ camOff(); });
+document.addEventListener('resume',()=>camWake());
+setInterval(()=>{                                    /* the guard: a scan screen without a running camera gets one */
+  const w=CAM_WANT; if(!w||document.hidden||(CAM_STARTING&&CAM_STARTING===CAM_GEN)) return;
+  const box=camBox();
+  if(!box||!document.body.contains(w.box)||box!==w.box){ stopScanner(); return; }
+  if(camMsgOn()) return;
+  if(!scanner) camWake();
+},2000);
 /* ================= STORE KEEPER ================= */
 let pinBuf='',curStoreView=null;
 function pinScreen(){
@@ -1598,6 +1710,10 @@ const dmgOf=tid=>damageOpen().find(d=>d.tid===tid)||null;
    The store keeper closes a line by pressing "Replaced with new". That only stamps
    the record; the tool itself goes back to being a normal tool in the tool list. */
 const GRADE_WORD={B:'Defect',C:'Damaged',D:'Missing'};
+/* the 4 choices a technician makes when he returns a tool */
+const GRADE_FULL={A:'Good',B:'Defect',C:'Damaged',D:'Missing'};
+const GRADE_MEAN={A:'No problem - ready for the next man',B:'Works, but has a small fault - check it',C:'Broken - cannot be used properly',D:'The tool or a piece did NOT come back'};
+const gradeBadge=g=>/^[ABCD]$/.test(String(g))?'<span class="badge g'+g+'">'+g+' · '+GRADE_FULL[g]+'</span>':'';
 function damageList(){
   return toolMoves().filter(m=>m.cin&&m.cin!=='A')
     .sort((a,b)=>String(b.ret||b.out||'').localeCompare(String(a.ret||a.out||'')));
@@ -1619,12 +1735,12 @@ async function dmgReopen(id){
 function liveMap(){ const lm={}; ALLTOOLS().forEach(t=>{lm[t[T_ID]]=toolLive(t[T_ID]);}); return lm; }
 function counts(){
   const open=toolMoves().filter(m=>m.status!=='IN');
-  let out=0,pending=0,overdue=0,damaged=0,reqs=0;
-  open.forEach(m=>{if(m.status==='OUT'){out++;if(isOverdue(m))overdue++;}if(m.status==='PENDING')pending++;if(m.status==='REQ')reqs++;});
+  let out=0,pending=0,overdue=0,damaged=0,reqs=0,due=0;
+  open.forEach(m=>{if(m.status==='OUT'){out++;if(isOverdue(m))overdue++;else if(isDueSoon(m))due++;}if(m.status==='PENDING')pending++;if(m.status==='REQ')reqs++;});
   damaged=damageOpen().length;
   const allT=ALLTOOLS(), lm=liveMap(), openDmg={}; damageOpen().forEach(m=>{openDmg[m.tid]=m;});
   const nOf=f=>allT.filter(t=>afHit(f,t,openDmg,lm)).length;
-  return {total:allT.length,inStore:nOf('in'),out,pending,overdue,damaged,reqs,
+  return {total:allT.length,inStore:nOf('in'),out,pending,overdue,damaged,reqs,due,
           tIn:nOf('in'),tOut:nOf('out'),tOver:nOf('over'),tDmg:nOf('dmg')};
 }
 let TAB='out';
@@ -1645,6 +1761,8 @@ function dash(){
     <div class="stat red tap" onclick="stab('damaged')"><div class="n">${c.damaged}</div><div class="l">Damaged</div></div></div>
     ${c.reqs?`<div class="alert warn" onclick="stab('requests')" style="cursor:pointer"><b>TAKE — ${c.reqs} tool${c.reqs>1?'s':''}</b> waiting for you to hand over ›</div>`:''}
     ${c.pending?`<div class="alert warn" onclick="stab('pending')" style="cursor:pointer"><b>RETURN — ${c.pending} tool${c.pending>1?'s':''}</b> waiting for you to receive ›</div>`:''}
+    ${c.overdue?`<div class="alert red" id="odAlert" onclick="stab('overdue')" style="cursor:pointer"><b>OVERDUE — ${c.overdue} tool${c.overdue>1?'s':''}</b> kept more than ${LIMIT_TXT} ›</div>`:''}
+    ${c.due?`<div class="alert warn" id="dueAlert" onclick="stab('due')" style="cursor:pointer"><b>⚠ DUE SOON — ${c.due} tool${c.due>1?'s':''}</b> out more than 3 days · tell the technician ›</div>`:''}
     <button class="btn primary livebtn" onclick="stab('all')">
       <span class="lt1">&#128736;&nbsp; LIVE TOOLS</span>
       <span class="lt2">all ${c.total} tools &middot; ${c.tIn} in store &middot; ${c.tOut} out${c.tOver?' &middot; '+c.tOver+' overdue':''}${c.tDmg?' &middot; '+c.tDmg+' damaged':''}</span>
@@ -1666,7 +1784,7 @@ function dtabs(){const c=counts();const today=histToday().length;
   const opn=toolMoves().filter(m=>m.status!=='IN');
   const techN=new Set(opn.map(m=>m.techId)).size;
   // LIVE TOOLS first - it is the screen he opens most. The rest follow the day's work.
-  const defs=[['requests','TAKE — hand over',c.reqs],['pending','RETURN — receive',c.pending],['received','Received today',recvToday().length],['today',"Today's technicians",ttData('today').length],['damaged','Damaged',c.damaged],['out','Out',c.out],['overdue','Overdue',c.overdue],['bytech','By technician',techN],['history','History',today],['entries','Entries',LOG.filter(m=>m.kind==='ENTRY'&&isToday(m.at)).length]];
+  const defs=[['requests','TAKE — hand over',c.reqs],['pending','RETURN — receive',c.pending],['received','Received today',recvToday().length],['today',"Today's technicians",ttData('today').length],['damaged','Damaged',c.damaged],['out','Out',c.out],['due','Due soon',c.due],['overdue','Overdue',c.overdue],['bytech','By technician',techN],['history','History',today],['entries','Entries',LOG.filter(m=>m.kind==='ENTRY'&&isToday(m.at)).length]];
   $('tabs').innerHTML=defs.map(([k,l,n])=>`<button class="tab ${(TAB===k||(k==='today'&&TAB==='techday'))?'on':''}" onclick="stab('${k}')">${l}<span class="c">${n}</span></button>`).join('');
 }
 function rlist(){
@@ -1685,13 +1803,14 @@ function rlist(){
   open.forEach(m=>{
     if(TAB==='requests'&&m.status==='REQ')items.push({t:toolById(m.tid)||[m.tid,'','(tool not in the list)',1,'Single','','',''],m});
     if(TAB==='out'&&m.status==='OUT')items.push({t:toolById(m.tid)||[m.tid,'','(tool not in the list)',1,'Single','','',''],m});
+    if(TAB==='due'&&isDueSoon(m))items.push({t:toolById(m.tid)||[m.tid,'','(tool not in the list)',1,'Single','','',''],m});
     if(TAB==='overdue'&&m.status==='OUT'&&isOverdue(m))items.push({t:toolById(m.tid)||[m.tid,'','(tool not in the list)',1,'Single','','',''],m});
     if(TAB==='pending'&&m.status==='PENDING')items.push({t:toolById(m.tid)||[m.tid,'','(tool not in the list)',1,'Single','','',''],m});
   });
   if(!items.length){box.innerHTML=`<div class="empty"><div class="big">✓</div>Nothing here</div>`;return;}
   box.innerHTML=items.map(({t,m})=>{
     if(!m)return `<div class="rec"><div class="hd"><span class="rid">${t[T_ID]}</span><span class="rname">${esc(t[T_NAME]||'(no name)')}</span><span class="badge instore">In store</span></div><div class="sub">${meta(t)}</div></div>`;
-    let b='';if(m.status==='OUT')b=isOverdue(m)?'<span class="badge out">Overdue</span>':'<span class="badge" style="background:var(--bluebg);color:var(--blue)">Out</span>';if(m.status==='PENDING')b='<span class="badge pend">Return</span>';if(m.status==='REQ')b='<span class="badge pend">Take</span>';
+    let b='';if(m.status==='OUT')b=isOverdue(m)?'<span class="badge out">Overdue</span>':isDueSoon(m)?dueBadge(m):'<span class="badge" style="background:var(--bluebg);color:var(--blue)">Out</span>';if(m.status==='PENDING')b='<span class="badge pend">Return</span>'+gradeBadge(m.cin);if(m.status==='REQ')b='<span class="badge pend">Take</span>';
     const dmg=m.status==='PENDING'&&m.cin&&m.cin!=='A';
     const when=m.status==='REQ'?`requested ${fmtTime(m.req)} · ${ago(m.req)} ago`:`out ${fmtTime(m.out)}${m.status==='OUT'?' · '+ago(m.out)+' ago':''}`;
     let ban='';
@@ -1845,7 +1964,7 @@ function histRow(m){const t=toolById(m.tid)||[m.tid,'','?'];let s,col;
     return `<div class="rec"><div class="hd"><span class="rid">${esc(m.tid)}</span><span class="rname">${esc(t[T_NAME]||'')}</span><span class="badge" style="background:#eef1f5;color:${col}">${s}</span></div>${unitLine(m)}
       <div class="sub">${techTag(m)}</div>
       ${(m.outBy||m.inBy)?`<div class="sub">${m.outBy?'given by <b>'+esc(m.outBy)+'</b>':''}${m.outBy&&m.inBy?' · ':''}${m.inBy?'taken back by <b>'+esc(m.inBy)+'</b>':''}</div>`:''}
-      <div class="sub">${m.status==='REQ'?'Requested '+fmtTime(m.req):'OUT '+fmtTime(m.out)+(m.ret?' → IN '+fmtTime(m.recvAt||m.ret):'')}${m.cin?' · condition <b>'+m.cin+'</b>':''}</div>
+      <div class="sub">${m.status==='REQ'?'Requested '+fmtTime(m.req):'OUT '+fmtTime(m.out)+(m.ret?' → IN '+fmtTime(m.recvAt||m.ret):'')}${m.cin?' · '+gradeBadge(m.cin):''}</div>
       ${m.rejBy&&m.rejAt?`<div class="sub">A return was sent back by <b>${esc(m.rejBy)}</b>${m.rejCin?' · he had reported <b>'+m.rejCin+'</b>'+(m.rejNote?': '+esc(m.rejNote):''):''}</div>`:''}
       ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}${m.missPcs?`<div class="sub" style="color:var(--red);font-weight:800">NOT RETURNED: ${esc(m.missPcs)}</div>`:''}${m.note?`<div class="sub">Note: ${esc(m.note)}</div>`:''}</div>`;
 }
@@ -1895,7 +2014,7 @@ function rtechprofile(box){
     let b='';if(m.status==='OUT')b=isOverdue(m)?'<span class="badge out">Overdue</span>':'<span class="badge" style="background:var(--bluebg);color:var(--blue)">Out</span>';else if(m.status==='REQ')b='<span class="badge pend">Take · waiting</span>';else if(m.status==='PENDING')b='<span class="badge pend">Return · waiting</span>';else b='<span class="badge instore">Returned</span>';
     const dmg=m.cin&&m.cin!=='A';
     return `<div class="rec"><div class="hd"><span class="rid">${esc(m.tid)}</span><span class="rname">${esc(t[T_NAME]||'(no name)')}</span>${b}</div>${unitLine(m)}
-      <div class="sub">${m.status==='REQ'?'Requested '+fmtTime(m.req):'OUT '+fmtTime(m.out)+(m.ret?' → IN '+fmtTime(m.recvAt||m.ret):' · '+ago(m.out)+' ago')}${m.cin?' · condition <b>'+m.cin+'</b>':''}</div>
+      <div class="sub">${m.status==='REQ'?'Requested '+fmtTime(m.req):'OUT '+fmtTime(m.out)+(m.ret?' → IN '+fmtTime(m.recvAt||m.ret):' · '+ago(m.out)+' ago')}${m.cin?' · '+gradeBadge(m.cin):''}</div>
       ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}${m.note?`<div class="sub">Note: ${esc(m.note)}</div>`:''}
       ${dmg&&m.status==='PENDING'?`<div class="alert red" style="margin:8px 0 0">Defect — check before confirming</div>`:''}
       ${m.status==='PENDING'?`<div class="row2"><button class="btn red sm" onclick="rej('${m.id}')">Reject</button><button class="btn green sm" onclick="${pcNof(m.tid)?`cinPieces('${m.id}')`:`cin('${m.id}')`}">Accept — take back</button></div>`:''}</div>`;
@@ -1994,7 +2113,7 @@ function ttMove(m,noAct){
     <div class="sub" style="font-weight:700;color:var(--ink)">${meta(t)}</div>
     ${L.map(x=>`<div class="sub">${x}</div>`).join('')}
     ${m.noPhone?`<div class="sub" style="color:var(--red);font-weight:700">NO PHONE — issued manually</div>`:''}
-    ${m.cin?`<div class="sub">Condition <b style="color:${dmg?'var(--red)':'var(--green)'}">${m.cin}${dmg?' — '+(GRADE_WORD[m.cin]||''):' — Good'}</b></div>`:''}
+    ${m.cin?`<div class="sub">Condition ${gradeBadge(m.cin)}</div>`:''}
     ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}${m.missPcs?`<div class="sub" style="color:var(--red);font-weight:700">Not returned: ${esc(m.missPcs)}</div>`:''}
     ${m.note?`<div class="sub">Note: ${esc(m.note)}</div>`:''}
     ${m.status==='PENDING'&&noAct!==true?`<div class="row2"><button class="btn red sm" onclick="rej('${m.id}')">Reject</button><button class="btn green sm" onclick="${pcNof(m.tid)?`cinPieces('${m.id}')`:`cin('${m.id}')`}">Accept — take back</button></div>`:''}</div>`;
@@ -2105,7 +2224,7 @@ function monthData(key){
       if(lateFrom<ME&&lateTo>MS){                      /* he was late with this tool during this month */
         const at=new Date(Math.max(lateFrom,MS)).toISOString();
         if(m.ret&&repInMonth(m.ret,key)) ev('LATE',m,m.ret,'Returned '+repH1(L.over)+' late - held '+repH1(L.held),{over:L.over,held:L.held,pts:REP_PTS.LATE+Math.min(4,Math.floor(L.over/24))});
-        else if(!m.ret&&isNow) ev('OVERDUE',m,at,'Still with him - held '+repH1(L.held)+' ('+repH1(L.over)+' past the '+OVERDUE_H+' h limit)',{over:L.over,held:L.held,pts:REP_PTS.OVERDUE+Math.min(7,Math.floor(L.over/24))});
+        else if(!m.ret&&isNow) ev('OVERDUE',m,at,'Still with him - held '+repH1(L.held)+' ('+repH1(L.over)+' past the '+LIMIT_TXT+' limit)',{over:L.over,held:L.held,pts:REP_PTS.OVERDUE+Math.min(7,Math.floor(L.over/24))});
         else { const endM=Math.min(lateTo,ME), overM=repHrs(endM-lateFrom);
           ev('OVERDUE',m,at,'Overdue in this month (taken '+fmtTime(m.out)+') - '+(m.ret?'returned '+fmtTime(m.ret):'STILL with him'),{over:overM,held:repHrs(endM-repT(m.out)),pts:REP_PTS.OVERDUE+Math.min(7,Math.floor(overM/24))}); }
       }
@@ -2171,7 +2290,7 @@ function monthData(key){
     overdue:by('OVERDUE'),late:by('LATE'),rejects:E.filter(e=>e.type==='REJECT'||e.type==='SAIDGOOD'),typed:by('TYPED'),noPhone:by('NOPHONE'),slowIn:by('SLOWIN'),
     dmg:E.filter(e=>e.type==='DAMAGE'||e.type==='DEFECT'||e.type==='MISSING'),
     alerts:E.filter(e=>e.pts>0),problemTechs:techs.filter(p=>p.pts>0),
-    returned:moves.filter(m=>m.ret&&repInMonth(m.ret,key)),stillOut:moves.filter(outAtEnd),waiting:isNow?moves.filter(m=>m.status==='PENDING'):[]};
+    dueSoon:isNow?moves.filter(isDueSoon):[],conds:moves.filter(m=>m.ret&&repInMonth(m.ret,key)&&/^[ABCD]$/.test(String(m.cin||''))).sort((a,b)=>String(b.ret).localeCompare(String(a.ret))),returned:moves.filter(m=>m.ret&&repInMonth(m.ret,key)),stillOut:moves.filter(outAtEnd),waiting:isNow?moves.filter(m=>m.status==='PENDING'):[]};
 }
 /* ---------- small view helpers ---------- */
 const repToolName=tid=>{ const t=toolById(tid); return t?(t[T_NAME]||''):''; };
@@ -2204,8 +2323,10 @@ const repAnim=quiet=>quiet?'':' rp-slide';
 const REP_SUBJ=[
   ['problems','Problem technicians','Who made mistakes this month, worst first',d=>d.problemTechs.length,'red'],
   ['alerts','Cheat & mistake alerts','Every suspicious or wrong action, newest first',d=>d.alerts.length,'red'],
-  ['overdue','Overdue now','Tools still with a technician past '+OVERDUE_H+' hours',d=>d.overdue.length,'red'],
-  ['late','Late returns','Came back after more than '+OVERDUE_H+' hours',d=>d.late.length,'amber'],
+  ['overdue','Overdue now','Tools still with a technician past '+LIMIT_TXT,d=>d.overdue.length,'red'],
+  ['due','Due soon (warning)','Out more than 3 days - must come back before '+LIMIT_TXT,d=>d.dueSoon.length,'amber'],
+  ['late','Late returns','Came back after more than '+LIMIT_TXT,d=>d.late.length,'amber'],
+  ['cond','Return condition A / B / C / D','Every return this month: Good, Defect, Damaged or Missing - who, when, received by',d=>d.conds.length,''],
   ['damage','Damaged & missing','Reported not good, with the reason and if it was replaced',d=>d.dmg.length,'red'],
   ['rejects','Returns not accepted','The store keeper sent the tool back to the technician',d=>d.rejects.length,'amber'],
   ['slowin','Handed in late to the store keeper','Marked returned, but the store keeper got it more than '+REP_RECEIPT_H+' h later',d=>d.slowIn.length,'amber'],
@@ -2265,6 +2386,19 @@ function repSubject(key,id,quiet){
     const L={overdue:d.overdue,late:d.late,rejects:d.rejects,typed:d.typed,nophone:d.noPhone,slowin:d.slowIn,damage:d.dmg}[id];
     body=L.length?L.map(e=>repEventRow(e,key,true)).join(''):empty('Nothing this month');
   }
+  else if(id==='cond'){
+    const cnt=g=>d.conds.filter(m=>m.cin===g).length;
+    body=`<div class="rp-cg">${['A','B','C','D'].map(g=>`<div>${gradeBadge(g)}<b>${cnt(g)}</b><small>${GRADE_MEAN[g]}</small></div>`).join('')}</div>`+
+      (d.conds.length?['D','C','B','A'].map(g=>{ const L=d.conds.filter(m=>m.cin===g); if(!L.length) return '';
+        return `<h3 style="margin:16px 2px 4px">${g} · ${GRADE_FULL[g]} (${L.length})</h3>`+L.map(m=>`<div class="rec"><div class="hd"><span class="rid rp-link" onclick="repTool('${key}','${repQ(m.tid)}')">${esc(m.tid)}${m.unit?'-'+esc(m.unit):''}</span><span class="rname">${esc(repToolName(m.tid))}</span>${gradeBadge(m.cin)}</div>
+          <div class="sub rp-link" onclick="repTech('${key}','${repQ(repKeyOf(m))}')"><b class="tn">${esc(m.tech||'')}</b> · ${esc(m.sec||'')}${m.techId?' · ID '+esc(m.techId):''} ›</div>
+          <div class="sub">Returned ${fmtTime(m.ret)} · ${m.status==='IN'?'received '+fmtTime(m.recvAt||m.ret)+(m.inBy?' by <b>'+esc(m.inBy)+'</b>':''):'<b style="color:var(--amber)">waiting for the store keeper</b>'}</div>
+          ${m.note?`<div class="sub"><b>Note:</b> ${esc(m.note)}</div>`:''}${m.cin==='D'&&m.missPcs?`<div class="sub" style="color:var(--red);font-weight:700">Not returned: ${esc(m.missPcs)}</div>`:''}</div>`).join(''); }).join(''):empty('No tool returned this month'));
+  }
+  else if(id==='due') body=d.dueSoon.length?d.dueSoon.slice().sort((a,b)=>String(a.out).localeCompare(String(b.out))).map(m=>`<div class="rec" style="border-left:4px solid var(--amber);padding-left:10px">
+      <div class="hd"><span class="rid rp-link" onclick="repTool('${key}','${repQ(m.tid)}')">${esc(m.tid)}${m.unit?'-'+esc(m.unit):''}</span><span class="rname">${esc(repToolName(m.tid))}</span>${dueBadge(m)}</div>
+      <div class="sub rp-link" onclick="repTech('${key}','${repQ(repKeyOf(m))}')"><b class="tn">${esc(m.tech||'')}</b> · ${esc(m.sec||'')}${m.techId?' · ID '+esc(m.techId):''} ›</div>
+      <div class="sub">Taken ${fmtTime(m.out)}${m.outBy?' by '+esc(m.outBy):''} · out ${ago(m.out)} · <b>${leftTxt(m)}</b></div></div>`).join(''):empty('No tool is close to the limit');
   else if(id==='techs') body=d.techs.length?d.techs.slice().sort((a,b)=>a.tech.localeCompare(b.tech)).map(p=>repTechRow(p,key,null)).join(''):empty('No technician activity');
   else if(id==='tools') body=d.tools.length?d.tools.map(t=>`<button class="rp-row" onclick="repTool('${key}','${repQ(t.tid)}')">
       <span class="rp-main"><b>${esc(t.tid)} · ${esc(repToolName(t.tid))}</b><small>taken ${t.taken}× by ${t.men.size} m${t.men.size!==1?'en':'an'}${t.late?' · late '+t.late:''}${t.overdue?' · overdue '+t.overdue:''}${t.damage?' · damaged/missing '+t.damage:''}${t.rejected?' · not accepted '+t.rejected:''}</small></span>
@@ -2285,8 +2419,8 @@ function repMoveRow(m,key,showTech){
       <span class="badge ${m.status==='IN'?(L?'pend':'instore'):m.status==='OUT'?(L?'out':'blue'):'pend'}">${st}</span></div>
     ${showTech?`<div class="sub rp-link" onclick="repTech('${key}','${repQ(repKeyOf(m))}')"><b class="tn">${esc(m.tech||'')}</b> · ${esc(m.sec||'')} ›</div>`:''}
     <div class="sub">Out ${fmtTime(m.out)}${m.outBy?' by '+esc(m.outBy):''}${m.ret?' · returned '+fmtTime(m.ret):''}${m.recvAt&&m.status==='IN'?' · received '+fmtTime(m.recvAt)+(m.inBy?' by '+esc(m.inBy):''):''}</div>
-    ${L?`<div class="sub" style="color:var(--red);font-weight:700">Held ${repH1(L.held)} - ${repH1(L.over)} over the ${OVERDUE_H} h limit</div>`:''}
-    ${m.cin&&m.cin!=='A'?`<div class="sub" style="color:var(--red);font-weight:700">${esc(GRADE_WORD[m.cin]||m.cin)}${m.note?': '+esc(m.note):''}</div>`:''}
+    ${L?`<div class="sub" style="color:var(--red);font-weight:700">Held ${repH1(L.held)} - ${repH1(L.over)} over the ${LIMIT_TXT} limit</div>`:''}
+    ${m.cin?`<div class="sub">Condition ${gradeBadge(m.cin)}${m.note?' '+esc(m.note):''}</div>`:''}
     ${rj.length?`<div class="sub" style="color:var(--amber);font-weight:700">Return not accepted ${rj.length}×</div>`:''}
     ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}</div>`;
 }
@@ -2309,7 +2443,7 @@ function repTech(key,tk,quiet){
     <div class="stats">${cell(p.taken,'Tools taken')}${cell(p.onTime,'Back on time')}${cell(p.late,'Late returns',1)}
       ${cell(p.overdue,'Overdue now',1)}${cell(p.damaged+p.defect+p.missing,'Damaged / missing',1)}${cell(p.rejected,'Not accepted',1)}
       ${cell(p.typed,'ID typed',1)}${cell(p.noPhone,'No phone',1)}${cell(p.visits,'Cabin visits')}</div>
-    ${p.late||p.overdue?`<div class="card">${p.late?`<div class="kv"><span class="k">Late returns - total time late</span><span class="v" style="color:var(--red)">${repH1(p.lateH)}</span></div>`:''}${p.overdue?`<div class="kv"><span class="k">Overdue tools - time late so far</span><span class="v" style="color:var(--red)">${repH1(p.odH)}</span></div>`:''}<div class="kv"><span class="k">Worst single tool</span><span class="v" style="color:var(--red)">${repH1(p.worstLate)} over the ${OVERDUE_H} h limit</span></div></div>`:''}
+    ${p.late||p.overdue?`<div class="card">${p.late?`<div class="kv"><span class="k">Late returns - total time late</span><span class="v" style="color:var(--red)">${repH1(p.lateH)}</span></div>`:''}${p.overdue?`<div class="kv"><span class="k">Overdue tools - time late so far</span><span class="v" style="color:var(--red)">${repH1(p.odH)}</span></div>`:''}<div class="kv"><span class="k">Worst single tool</span><span class="v" style="color:var(--red)">${repH1(p.worstLate)} over the ${LIMIT_TXT} limit</span></div></div>`:''}
     <div class="card" style="padding:4px 14px"><h3 style="margin:14px 2px 6px">Mistakes &amp; alerts (${ev.filter(e=>e.pts).length})</h3>${ev.filter(e=>e.pts).map(e=>repEventRow(e,key,false)).join('')||'<div class="empty" style="padding:22px">None</div>'}</div>
     <div class="card" style="padding:4px 14px"><h3 style="margin:14px 2px 6px">Every tool he had this month (${mv.length})</h3>${mv.map(m=>repMoveRow(m,key,false)).join('')||'<div class="empty" style="padding:22px">None</div>'}</div></div>`;
   if(!quiet) window.scrollTo(0,0);
@@ -2336,7 +2470,8 @@ function downloadReport(key){
   push('TOOL STORE - MONTHLY REPORT');
   push('Month',monthLabel(key)); push('Generated',new Date().toLocaleString('en-GB')); push('');
   push('SUMMARY');
-  push('Tools taken',d.takenM.length); push('Returned',d.returned.length); push('Overdue now',d.overdue.length); push('Late returns',d.late.length);
+  push('Return limit',LIMIT_TXT+' (warning after 3 days)');
+  push('Tools taken',d.takenM.length); push('Returned',d.returned.length); push('Overdue now',d.overdue.length); push('Due soon (out more than 3 days)',d.dueSoon.length); push('Late returns',d.late.length);
   push('Damaged / defect / missing',d.dmg.length); push('Returns not accepted',d.rejects.length); push('Handed in late to store keeper',d.slowIn.length);
   push('ID typed (not scanned)',d.typed.length); push('Came without phone',d.noPhone.length); push('Cabin visits',d.entries.length); push('Alerts in total',d.alerts.length); push('');
   push('PROBLEM TECHNICIANS (worst first)');
@@ -2346,6 +2481,16 @@ function downloadReport(key){
   push('ALL ALERTS (newest first)');
   push('Date and time','What happened','Points','Technician','ID','Section','Tool','Piece','Tool name','Details','Store keeper');
   d.alerts.forEach(e=>push(fmtTime(e.at),REP_WORD[e.type]||e.type,e.pts,e.tech,e.techId,e.sec,e.tid,e.unit,repToolName(e.tid),e.text,e.keeper||''));
+  push('');
+  push('RETURN CONDITION (the 4 choices at every return)');
+  push('Grade','Meaning','Returns this month');
+  ['A','B','C','D'].forEach(g=>push(g+' - '+GRADE_FULL[g],GRADE_MEAN[g],d.conds.filter(m=>m.cin===g).length));
+  push('Tool','Piece','Tool name','Condition','Technician','ID','Section','Returned','Received','Received by','Note');
+  d.conds.forEach(m=>push(m.tid,m.unit||'',repToolName(m.tid),m.cin+' - '+GRADE_FULL[m.cin],m.tech,m.techId||'',m.sec,fmtTime(m.ret),m.status==='IN'?fmtTime(m.recvAt||m.ret):'waiting',m.inBy||'',m.note||''));
+  push('');
+  push('DUE SOON (warning - out more than 3 days)');
+  push('Tool','Piece','Tool name','Technician','ID','Section','Taken','Out for','Time left');
+  d.dueSoon.forEach(m=>push(m.tid,m.unit||'',repToolName(m.tid),m.tech,m.techId||'',m.sec,fmtTime(m.out),ago(m.out),leftTxt(m)));
   push('');
   push('ALL TECHNICIANS');
   push('Technician','ID','Section','Tools taken','Returned','Back on time','Still out','Late returns','Overdue now','Damaged/defect/missing','Not accepted','ID typed','No phone','Cabin visits','Mistake points');
@@ -2374,7 +2519,7 @@ function downloadReport(key){
   d.moves.slice().sort((a,b)=>String(a.out||a.req).localeCompare(String(b.out||b.req))).forEach(m=>{ const L=repLate(m);
     const held=m.out?repHrs((m.ret?repT(m.ret):Date.now())-repT(m.out)):0;
     push(m.tid,m.unit||'',repToolName(m.tid),m.tech,m.techId||'',m.sec,fmtTime(m.req),fmtTime(m.out),m.outBy||'',m.ret?fmtTime(m.ret):'',m.status==='IN'?fmtTime(m.recvAt||m.ret):'',m.inBy||'',
-      m.out?repH1(held):'',L?repH1(L.over):'',m.cin||'',m.note||'',repRejList(m).length||'',m.items||'',m.missPcs||'',m.noPhone?'YES':'',m.idBy==='typed'?'YES':'',m.status); });
+      m.out?repH1(held):'',L?repH1(L.over):'',m.cin?m.cin+' - '+GRADE_FULL[m.cin]:'',m.note||'',repRejList(m).length||'',m.items||'',m.missPcs||'',m.noPhone?'YES':'',m.idBy==='typed'?'YES':'',m.status); });
   const csv='﻿'+rows.join('\r\n');
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   const a=document.createElement('a');
