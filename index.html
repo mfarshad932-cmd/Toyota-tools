@@ -365,6 +365,21 @@ button.btn[disabled]{opacity:.42;pointer-events:none}
 .livebtn .lt2{opacity:.95}
 .idcard .meta{opacity:.9}
 .top .sub{opacity:.85}
+/* v25: monthly report */
+.rp-row{display:flex;align-items:center;gap:10px;width:100%;padding:13px 14px;border:0;border-bottom:1px solid var(--hair);background:none;text-align:left;font:inherit;color:var(--ink);cursor:pointer}
+.rp-row:last-child{border-bottom:0}.rp-row:active{background:#F1F3F6}
+.rp-main{flex:1;min-width:0}.rp-main b{display:block;font-size:14.5px}.rp-main small{display:block;font-size:12.5px;color:#2A323D;margin-top:2px;line-height:1.4}
+.rp-main small.rp-why{color:var(--red);font-weight:700}
+.rp-rank{flex:0 0 22px;font-family:var(--mono);font-weight:800;color:var(--ink2);font-size:13px}
+.rp-n{font-family:var(--mono);font-weight:800;font-size:17px;color:var(--ink);min-width:28px;text-align:right}
+.rp-n.red{color:var(--red)}.rp-n.amber{color:var(--amber)}
+.rp-ar{color:var(--ink3);font-size:20px;font-weight:700}
+.rp-when{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--ink2)}
+.rp-link{cursor:pointer}.rp-link:active{opacity:.6}
+.rp-ev{padding-left:10px}
+#view{overflow-x:clip}   /* the slide-in never makes the page scroll sideways */
+.rp-slide{animation:rpIn .22s ease-out}
+@keyframes rpIn{from{transform:translateX(26px);opacity:0}to{transform:none;opacity:1}}
 /* v22: take / return choice */
 .btn.choice{display:flex;flex-direction:column;align-items:center;gap:4px;padding:20px 14px;font-size:19px;font-weight:900;letter-spacing:.04em;margin-top:12px;color:#fff}
 .btn.choice small{font-size:12.5px;font-weight:600;letter-spacing:0;opacity:.9}
@@ -1190,7 +1205,7 @@ function reqScreen(tid,m){
 async function cancelReq(id){
   const m=LOG.find(x=>x.id===id);
   if(!m||m.status!=='REQ'){toast('Already handled by the store keeper');techToolList();return;}   // never erase a tool that was handed over
-  window.DB.update(id,{kind:'DELETED',status:'IN',tid:''}).catch(saveErr);toast('Request cancelled');techToolList();}
+  window.DB.update(id,{kind:'DELETED',status:'IN',tid:'',wasTid:m.tid,cancelAt:new Date().toISOString(),cancelBy:'technician'}).catch(saveErr);toast('Request cancelled');techToolList();}
 function outWithScreen(tid,m){
   TV='status';TVSIG=tvSig(tid);
   const t=toolOr(tid);setTitle('Tool is out',t[T_ID]);
@@ -1402,16 +1417,98 @@ async function doAddManual(){
 }
 
 /* ---- QR scanner control ---- */
-function startScanner(onOk){
-  stopScanner();                          // never two cameras at once
-  const el=$('reader');if(!el)return;
-  if(typeof Html5Qrcode==='undefined'){const cf=$('camfail');if(cf)cf.style.display='block';return;}
-  try{
-    scanner=new Html5Qrcode('reader');
-    scanner.start({facingMode:'environment'},{fps:10,qrbox:220},txt=>{onOk(txt);},()=>{}).catch(()=>{const cf=$('camfail');if(cf)cf.style.display='block';});
-  }catch(e){const cf=$('camfail');if(cf)cf.style.display='block';}
+/* ===================== v25 CAMERA - never a black box =====================
+   Old cause of the black box: a new camera was started while the old one was still closing,
+   and the old camera's clean-up then wiped the new camera's picture (same "reader" box).
+   Now:
+   1. one camera at a time - a new camera waits until the old one is fully closed;
+   2. every camera gets its own fresh box, so an old clean-up can never touch it;
+   3. start / stop can never hang the app (time limit), so the next camera always gets its turn;
+   4. the picture is checked every 3.5 s while the camera runs - no live picture = restart by itself,
+      and if that does not help = clear message + RESTART CAMERA button (+ the screen's own advice);
+   5. phone screen off / app switched = camera off; back on the page = camera on again. */
+let CAM_Q=Promise.resolve(), CAM_GEN=0, CAM_CB=null, CAM_WD=null, CAM_PAUSED=null, CAM_AUTO=0, CAM_BUSY_TRY=0;
+const CAM_START_MS=7000, CAM_STOP_MS=3000, CAM_CHECK_MS=3500;
+function camBox(){ return $('reader'); }
+function camLimit(p,ms){ return Promise.race([p,new Promise((_,no)=>setTimeout(()=>no(Object.assign(new Error('camera timeout'),{name:'Timeout'})),ms))]); }
+function camMsg(kind){
+  const box=camBox(); if(!box) return;
+  box.style.display='none';                         /* no empty black box above the message */
+  let cf=$('camfail');
+  if(!cf){ cf=document.createElement('div'); cf.id='camfail'; cf.className='scanhint'; box.insertAdjacentElement('afterend',cf); }
+  const txt=kind==='denied'?'Camera permission is blocked. In Chrome tap the lock icon next to the address → Permissions → Camera → Allow, then press Restart camera.'
+          :kind==='busy'?'Another app is using the camera. Close it (WhatsApp, camera app…) and press Restart camera.'
+          :kind==='none'?'This phone has no camera that the browser can use.'
+          :'The camera did not start. Press Restart camera.';
+  if(cf.dataset.hint===undefined){ const d0=cf.querySelector('.d'); cf.dataset.hint=d0?d0.textContent:''; }   /* the screen's own advice (type ID / tap the list) */
+  const hint=cf.dataset.hint;
+  cf.innerHTML=`<div class="qic">📷</div><div class="t">Camera not working</div><div class="d">${txt}</div>${hint?`<div class="d" style="margin-top:6px">${esc(hint)}</div>`:''}
+    <button class="btn primary" id="camRetry" style="margin-top:12px" onclick="camRestart()">Restart camera</button>`;
+  cf.style.display='block';
 }
-function stopScanner(){const sc=scanner;scanner=null;if(sc){try{sc.stop().then(()=>{try{sc.clear();}catch(e){}}).catch(()=>{});}catch(e){}}}
+function camHideMsg(){ const cf=$('camfail'); if(cf&&cf.querySelector('#camRetry')) cf.style.display='none'; const b=camBox(); if(b) b.style.display=''; }
+function camKind(e){ const n=String(e&&(e.name||e)||'')+' '+String(e&&e.message||'');
+  if(/NotAllowed|Permission|denied/i.test(n)) return 'denied';
+  if(/NotReadable|TrackStart|in use|busy|Could not start/i.test(n)) return 'busy';
+  if(/NotFound|DevicesNotFound|Overconstrained/i.test(n)) return 'none';
+  return 'fail'; }
+/* close the current camera; the next camera waits for this to finish (never longer than 3 s) */
+function stopScanner(){
+  CAM_GEN++; clearTimeout(CAM_WD); CAM_WD=null;
+  const sc=scanner; scanner=null;
+  if(sc){ CAM_Q=CAM_Q.then(()=>camLimit(Promise.resolve().then(()=>sc.stop()),CAM_STOP_MS).catch(()=>{})).then(()=>{ try{ sc.clear(); }catch(e){} }).catch(()=>{}); }
+  return CAM_Q;
+}
+function startScanner(onOk){ CAM_AUTO=0; CAM_BUSY_TRY=0; camStart(onOk); }
+function camStart(onOk){
+  stopScanner();
+  const gen=++CAM_GEN; CAM_CB=onOk; CAM_PAUSED=null;
+  const box=camBox(); if(!box) return;
+  if(typeof Html5Qrcode==='undefined'){ camMsg('fail'); return; }
+  if(document.hidden){ CAM_PAUSED=onOk; return; }   /* page not on screen: start when he comes back */
+  CAM_Q=CAM_Q.then(async()=>{
+    if(gen!==CAM_GEN) return;                        /* he already left this screen */
+    const host=camBox(); if(!host) return;
+    host.style.display=''; host.innerHTML=''; const inner=document.createElement('div'); inner.id='rdr'+gen; host.appendChild(inner);
+    let sc;
+    try{ sc=new Html5Qrcode(inner.id); }catch(e){ camMsg('fail'); return; }
+    scanner=sc;
+    try{
+      await camLimit(sc.start({facingMode:'environment'},{fps:10,qrbox:220},txt=>{ if(gen===CAM_GEN&&CAM_CB) CAM_CB(txt); },()=>{}),CAM_START_MS);
+    }catch(e){
+      if(scanner===sc) scanner=null;
+      Promise.resolve().then(()=>sc.stop()).catch(()=>{});          /* a camera that came up late is switched off */
+      if(gen===CAM_GEN){ const k=camKind(e);
+        if((k==='busy'||k==='fail')&&CAM_BUSY_TRY<1){ CAM_BUSY_TRY++; setTimeout(()=>{ if(gen===CAM_GEN) camStart(onOk); },700); }
+        else camMsg(k); }
+      return;
+    }
+    if(gen!==CAM_GEN){ camLimit(Promise.resolve().then(()=>sc.stop()),CAM_STOP_MS).catch(()=>{}).then(()=>{ try{ sc.clear(); }catch(e){} }); return; }
+    camHideMsg();
+    CAM_WD=setTimeout(()=>camCheck(gen,onOk),CAM_CHECK_MS);
+  }).catch(()=>{});
+}
+/* is the picture really live? */
+function camLive(){ const v=camBox()&&camBox().querySelector('video');
+  if(!(v&&v.readyState>=2&&v.videoWidth>0&&!v.paused&&!v.ended)) return false;
+  const tr=v.srcObject&&v.srcObject.getVideoTracks?v.srcObject.getVideoTracks()[0]:null;
+  return !tr||(tr.readyState==='live'&&!tr.muted); }
+/* checked again and again while the camera runs - a picture that dies later is caught too */
+function camCheck(gen,onOk){
+  if(gen!==CAM_GEN||!camBox()) return;
+  if(document.hidden){ CAM_WD=setTimeout(()=>camCheck(gen,onOk),CAM_CHECK_MS); return; }
+  if(camLive()){ CAM_WD=setTimeout(()=>camCheck(gen,onOk),CAM_CHECK_MS); return; }
+  if(CAM_AUTO<1){ CAM_AUTO++; camStart(onOk); }      /* black picture: restart by itself once */
+  else { stopScanner(); camMsg('fail'); }
+}
+function camRestart(){ const cb=CAM_CB||CAM_PAUSED; if(!cb||!camBox()) return; CAM_AUTO=0; CAM_BUSY_TRY=0; camHideMsg(); camStart(cb); }
+/* phone screen off / app switched: free the camera, start it again when he comes back */
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){ if(scanner&&CAM_CB){ const cb=CAM_CB; stopScanner(); CAM_PAUSED=cb; } }
+  else if(CAM_PAUSED&&camBox()){ const cb=CAM_PAUSED; CAM_PAUSED=null; CAM_AUTO=0; CAM_BUSY_TRY=0; camStart(cb); }
+  else CAM_PAUSED=null;
+});
+window.addEventListener('pagehide',()=>{ stopScanner(); });
 /* ================= STORE KEEPER ================= */
 let pinBuf='',curStoreView=null;
 function pinScreen(){
@@ -1954,237 +2051,331 @@ function last3Months(){
   for(let i=0;i<3;i++){const d=new Date(n.getFullYear(),n.getMonth()-i,1);out.push(monthKey(d));}
   return out;
 }
+/* ===================== v25 MONTHLY REPORT =====================
+   Rule: the report says exactly what happened in the tool store this month.
+   Every mistake is an EVENT with date, time, technician, tool and store keeper.
+   A late return stays in the history for good (it is worked out from the out / return times),
+   so a late tool never disappears from the report once it comes back.
+   Main page = list of subjects. Tap a subject -> its full detail slides in.
+   Tap a technician -> his full month profile. Tap a tool -> its month history. */
+const REP_RECEIPT_H=2;                       /* returned but the store keeper received it more than 2 h later */
+const repHrs=ms=>ms/3.6e6;
+const repT=iso=>iso?new Date(iso).getTime():0;
+const repInMonth=(iso,key)=>!!iso&&monthKey(iso)===key;
+const repH1=h=>{ if(h>=48){ const dd=Math.floor(h/24), hh=Math.round(h-dd*24); return dd+' days'+(hh?' '+hh+' h':''); } return (h>=10?Math.round(h):Math.round(h*10)/10)+' h'; };
+function repRejList(m){
+  if(Array.isArray(m.rejHist)&&m.rejHist.length) return m.rejHist.filter(r=>r&&typeof r==='object'&&r.at);
+  return m.rejAt?[{at:m.rejAt,by:m.rejBy||'',byId:m.rejById||'',cin:m.rejCin||null,note:m.rejNote||''}]:[];
+}
+/* how long he held it, and how far past the 8 hour limit */
+function repLate(m){
+  if(!m.out) return null;
+  const end=m.ret?repT(m.ret):(m.status==='OUT'?Date.now():0);
+  if(!end) return null;
+  const held=repHrs(end-repT(m.out));
+  if(held<=OVERDUE_H) return null;
+  return {held,over:held-OVERDUE_H,open:!m.ret&&m.status==='OUT',at:m.ret||new Date(repT(m.out)+OVERDUE_H*3.6e6).toISOString()};
+}
+const REP_PTS={OVERDUE:3,MISSING:3,SAIDGOOD:3,REJECT:2,LATE:2,DAMAGE:2,DEFECT:1,TYPED:1,NOPHONE:1,SLOWIN:1};
+const REP_WORD={OVERDUE:'Overdue now',MISSING:'Missing / lost',SAIDGOOD:'Said GOOD - store keeper did not accept',REJECT:'Return not accepted',
+  LATE:'Returned late',DAMAGE:'Damaged',DEFECT:'Defect',TYPED:'ID typed, not scanned',NOPHONE:'Came without phone',SLOWIN:'Handed in late to store keeper'};
+const repKeyOf=x=>String(x.techId||x.tech||'');
+const repMonthRange=key=>{ const [y,mo]=key.split('-').map(Number); return [new Date(y,mo-1,1).getTime(),new Date(y,mo,1).getTime()]; };
+const repQ=v=>encodeURIComponent(String(v==null?'':v)).replace(/'/g,'%27');   /* safe inside onclick='...' */
+/* ---------- build everything for one month ---------- */
 function monthData(key){
-  const moves=toolMoves().filter(m=>m.out&&monthKey(m.out)===key);
-  const entries=LOG.filter(m=>m.kind==='ENTRY'&&m.at&&monthKey(m.at)===key);
-  const damaged=moves.filter(m=>m.cin&&m.cin!=='A'&&m.cin!=='D');
-  const missing=moves.filter(m=>m.cin==='D');
-  // every damage reported this month, whether it has been replaced yet or not
-  const dmgAll=moves.filter(m=>m.cin&&m.cin!=='A')
-    .sort((a,b)=>String(a.ret||a.out||'').localeCompare(String(b.ret||b.out||'')));
-  const dmgOpen=dmgAll.filter(m=>!m.dmgFixed);
-  const dmgDone=dmgAll.filter(m=>m.dmgFixed);
-  const stillOut=moves.filter(m=>m.status==='OUT');
-  const overdue=stillOut.filter(m=>isOverdue(m));
-  const returned=moves.filter(m=>m.status==='IN');
-  const waiting=moves.filter(m=>m.status==='PENDING');
-  const noPhone=moves.filter(m=>m.noPhone);
-  const npBy={};
-  noPhone.forEach(m=>{
-    const k=m.techId||m.tech;
-    npBy[k]=npBy[k]||{tech:m.tech,sec:m.sec,id:m.techId,times:0,tools:[]};
-    npBy[k].times++; npBy[k].tools.push(m.tid);
-  });
-  const noPhoneRows=Object.values(npBy).sort((a,b)=>b.times-a.times);
-  // per technician
-  const byTech={};
+  const cur=monthKey(new Date()), isNow=key===cur;
+  const all=toolMoves();
+  /* a movement belongs to the month if anything happened to it in the month - or it is still open (current month) */
+  const [MS,ME]=repMonthRange(key);
+  const openDuring=m=>m.out&&repT(m.out)<ME&&(m.status==='IN'?repT(m.recvAt||m.ret):Date.now())>MS&&m.status!=='REQ';
+  const moves=all.filter(m=>[m.req,m.out,m.ret,m.recvAt,m.dmgFixedAt].some(t=>repInMonth(t,key))||repRejList(m).some(r=>repInMonth(r.at,key))||openDuring(m));
+  const entries=LOG.filter(m=>m.kind==='ENTRY'&&repInMonth(m.at,key));
+  const cancelled=LOG.filter(m=>m.kind==='DELETED'&&(repInMonth(m.rejAt,key)||repInMonth(m.cancelAt,key)));
+  const E=[], DAY=Object.create(null);
+  /* one event per technician per day; the tools of that day are listed in it */
+  const dayOnce=(type,m,at,text,extra)=>{ const k=type+'|'+repKeyOf(m)+'|'+dayKey(at); const t=m.tid||'';
+    if(DAY[k]){ if(t&&!DAY[k].tools.includes(t)){ DAY[k].tools.push(t); DAY[k].text=DAY[k].base+' - tools '+DAY[k].tools.join(', '); } if(String(at)<String(DAY[k].at)) DAY[k].at=at; return; }
+    ev(type,m,at,text+(t?' - tool '+t:''),extra); const e=E[E.length-1]; e.base=text; e.tools=t?[t]:[]; DAY[k]=e; };
+  const ev=(type,m,at,text,extra)=>E.push(Object.assign({type,pts:REP_PTS[type]||0,at,tech:String(m.tech||''),techId:m.techId||'',sec:m.sec||'',tid:m.tid||m.wasTid||'',unit:m.unit||'',mid:m.id,text},extra||{}));
   moves.forEach(m=>{
-    const k=m.techId||m.tech;
-    byTech[k]=byTech[k]||{tech:m.tech,sec:m.sec,taken:0,returned:0,damaged:0,missing:0,out:0};
-    byTech[k].taken++;
-    if(m.status==='IN')byTech[k].returned++;
-    if(m.status==='OUT')byTech[k].out++;
-    if(m.cin&&m.cin!=='A'&&m.cin!=='D')byTech[k].damaged++;
-    if(m.cin==='D')byTech[k].missing++;
+    const L=repLate(m);
+    if(L){
+      const lateFrom=repT(m.out)+OVERDUE_H*3.6e6, lateTo=m.ret?repT(m.ret):Date.now();
+      if(lateFrom<ME&&lateTo>MS){                      /* he was late with this tool during this month */
+        const at=new Date(Math.max(lateFrom,MS)).toISOString();
+        if(m.ret&&repInMonth(m.ret,key)) ev('LATE',m,m.ret,'Returned '+repH1(L.over)+' late - held '+repH1(L.held),{over:L.over,held:L.held,pts:REP_PTS.LATE+Math.min(4,Math.floor(L.over/24))});
+        else if(!m.ret&&isNow) ev('OVERDUE',m,at,'Still with him - held '+repH1(L.held)+' ('+repH1(L.over)+' past the '+OVERDUE_H+' h limit)',{over:L.over,held:L.held,pts:REP_PTS.OVERDUE+Math.min(7,Math.floor(L.over/24))});
+        else { const endM=Math.min(lateTo,ME), overM=repHrs(endM-lateFrom);
+          ev('OVERDUE',m,at,'Overdue in this month (taken '+fmtTime(m.out)+') - '+(m.ret?'returned '+fmtTime(m.ret):'STILL with him'),{over:overM,held:repHrs(endM-repT(m.out)),pts:REP_PTS.OVERDUE+Math.min(7,Math.floor(overM/24))}); }
+      }
+    }
+    if(m.cin&&m.cin!=='A'&&repInMonth(m.ret||m.out,key)){
+      const t=m.cin==='D'?'MISSING':m.cin==='C'?'DAMAGE':'DEFECT';
+      ev(t,m,m.ret||m.out,(GRADE_WORD[m.cin]||m.cin)+(m.note?': '+m.note:' - no reason typed')+(m.dmgFixed?' (replaced with new by '+(m.dmgFixedBy||'')+')':' (NOT replaced yet)'));
+    }
+    repRejList(m).forEach(r=>{ if(!repInMonth(r.at,key)) return;
+      const good=!r.cin||r.cin==='A';
+      if(!good&&/^[BCD]$/.test(r.cin)) ev(r.cin==='D'?'MISSING':r.cin==='C'?'DAMAGE':'DEFECT',m,r.at,(GRADE_WORD[r.cin]||r.cin)+(r.note?': '+r.note:'')+' - reported when returning (that return was refused by '+(r.by||'store keeper')+')',{keeper:r.by||''});
+      ev(good?'SAIDGOOD':'REJECT',m,r.at,good?'Marked it returned in GOOD condition - '+(r.by||'store keeper')+' did NOT accept it':'Return not accepted by '+(r.by||'store keeper')+(r.cin?' (he reported '+(GRADE_WORD[r.cin]||r.cin)+(r.note?': '+r.note:'')+')':''),{keeper:r.by||''});
+    });
+    if(m.idBy==='typed'&&repInMonth(m.req||m.out,key)) dayOnce('TYPED',m,m.req||m.out,'ID typed by hand, not scanned - check it was really him');
+    if(m.noPhone&&repInMonth(m.out,key)) dayOnce('NOPHONE',m,m.out,'Came without phone - '+(m.outBy||'store keeper')+' gave the tool(s) by his ID',{keeper:m.outBy||''});
+    if(m.ret&&(repInMonth(m.ret,key)||(isNow&&m.status==='PENDING'))){
+      const end=m.status==='IN'?repT(m.recvAt||m.ret):(m.status==='PENDING'?Date.now():0);
+      const gap=end?repHrs(end-repT(m.ret)):0;
+      if(gap>REP_RECEIPT_H) ev('SLOWIN',m,m.ret,m.status==='PENDING'?'Marked returned '+repH1(gap)+' ago - the store keeper has NOT received it':'Marked returned, but the store keeper received it '+repH1(gap)+' later',{keeper:m.inBy||''});
+    }
   });
-  const techRows=Object.values(byTech).sort((a,b)=>b.taken-a.taken);
-  // busiest tools
-  const byTool={};
-  moves.forEach(m=>{byTool[m.tid]=(byTool[m.tid]||0)+1;});
-  const toolRows=Object.entries(byTool).sort((a,b)=>b[1]-a[1]).slice(0,10);
-  // per section
-  const bySec={};
-  moves.forEach(m=>{bySec[m.sec]=(bySec[m.sec]||0)+1;});
-  // how much each store keeper handled this month
+  entries.forEach(e=>{ if(e.idBy==='typed') dayOnce('TYPED',e,e.at,'ID typed by hand, not scanned - check it was really him'); });
+  E.sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+  /* ---------- per technician ---------- */
+  const outAtEnd=m=>isNow?m.status==='OUT':(m.out&&repT(m.out)<ME&&(!m.ret||repT(m.ret)>=ME)&&m.status!=='REQ');
+  const T=Object.create(null);
+  const tp=x=>{ const k=repKeyOf(x); if(!k) return null; return T[k]=T[k]||{key:k,tech:String(x.tech||''),techId:x.techId||'',sec:x.sec||'',taken:0,returned:0,onTime:0,stillOut:0,late:0,lateH:0,odH:0,worstLate:0,overdue:0,damaged:0,defect:0,missing:0,rejected:0,saidGood:0,typed:0,noPhone:0,slowIn:0,visits:0,cancelled:0,pts:0,tools:new Set()}; };
+  moves.forEach(m=>{ const p=tp(m); if(!p) return;
+    if(m.out&&repInMonth(m.out,key)){ p.taken++; p.tools.add(m.tid); }
+    if(m.ret&&repInMonth(m.ret,key)){ p.returned++; if(!repLate(m)) p.onTime++; }
+    if(outAtEnd(m)) p.stillOut++; });
+  entries.forEach(e=>{ const p=tp(e); if(p) p.visits++; });
+  cancelled.forEach(c=>{ const p=tp(c); if(p) p.cancelled++; });
+  E.forEach(e=>{ const p=tp(e); if(!p) return; p.pts+=e.pts;
+    if(e.type==='LATE'){ p.late++; p.lateH+=e.over; p.worstLate=Math.max(p.worstLate,e.over); }
+    else if(e.type==='OVERDUE'){ p.overdue++; p.odH+=e.over; p.worstLate=Math.max(p.worstLate,e.over); }
+    else if(e.type==='DAMAGE') p.damaged++; else if(e.type==='DEFECT') p.defect++; else if(e.type==='MISSING') p.missing++;
+    else if(e.type==='REJECT') p.rejected++; else if(e.type==='SAIDGOOD'){ p.rejected++; p.saidGood++; }
+    else if(e.type==='TYPED') p.typed++; else if(e.type==='NOPHONE') p.noPhone++; else if(e.type==='SLOWIN') p.slowIn++; });
+  const techs=Object.values(T).sort((a,b)=>b.pts-a.pts||b.taken-a.taken||a.tech.localeCompare(b.tech));
+  /* ---------- per tool ---------- */
+  const TL=Object.create(null);
+  const tt=tid=>TL[tid]=TL[tid]||{tid,taken:0,late:0,overdue:0,damage:0,rejected:0,men:new Set()};
+  moves.forEach(m=>{ if(m.out&&repInMonth(m.out,key)){ const t=tt(m.tid); t.taken++; t.men.add(m.tech); } });
+  E.forEach(e=>{ if(!e.tid) return; const t=tt(e.tid);
+    if(e.type==='LATE') t.late++; else if(e.type==='OVERDUE') t.overdue++;
+    else if(e.type==='DAMAGE'||e.type==='DEFECT'||e.type==='MISSING') t.damage++;
+    else if(e.type==='REJECT'||e.type==='SAIDGOOD') t.rejected++; });
+  const tools=Object.values(TL).sort((a,b)=>(b.damage*3+b.late*2+b.overdue*2+b.rejected)-(a.damage*3+a.late*2+a.overdue*2+a.rejected)||b.taken-a.taken);
+  /* ---------- store keepers ---------- */
   const kBy={};
-  KEEPERS.forEach(k=>kBy[k.id]={id:k.id,name:k.name,short:k.short,title:k.title,given:0,taken:0,noPhone:0});
+  KEEPERS.forEach(k=>kBy[k.id]={id:k.id,name:k.name,short:k.short,title:k.title,given:0,taken:0,noPhone:0,rejected:0});
   moves.forEach(m=>{
-    if(m.outById&&kBy[m.outById]){ kBy[m.outById].given++; if(m.noPhone)kBy[m.outById].noPhone++; }
-    if(m.inById&&kBy[m.inById]) kBy[m.inById].taken++;
+    if(m.outById&&kBy[m.outById]&&repInMonth(m.out,key)){ kBy[m.outById].given++; if(m.noPhone)kBy[m.outById].noPhone++; }
+    if(m.inById&&kBy[m.inById]&&repInMonth(m.recvAt||m.ret,key)) kBy[m.inById].taken++;
+    repRejList(m).forEach(r=>{ if(r.byId&&kBy[r.byId]&&repInMonth(r.at,key)) kBy[r.byId].rejected++; });
   });
   const keeperRows=Object.values(kBy).sort((a,b)=>(b.given+b.taken)-(a.given+a.taken));
-  const unstamped=moves.filter(m=>!m.outById&&m.status!=='REQ').length;
-  const vBy=Object.create(null);
-  entries.forEach(e=>{ const k=String(e.techId||e.tech||''); if(!k) return;
-    const v=vBy[k]=vBy[k]||{tech:e.tech,sec:e.sec,techId:e.techId,visits:0,days:new Set(),last:'',tools:0};
-    v.visits++; v.days.add(dayKey(e.at)); if(String(e.at)>v.last) v.last=String(e.at); });
-  moves.forEach(m=>{ const v=vBy[String(m.techId||m.tech||'')]; if(v) v.tools++; });
-  const visitRows=Object.values(vBy).sort((a,b)=>b.visits-a.visits);
-  return {key,visitRows,moves,entries,damaged,missing,dmgAll,dmgOpen,dmgDone,stillOut,overdue,returned,waiting,noPhone,noPhoneRows,techRows,toolRows,bySec,keeperRows,unstamped};
+  const by=t=>E.filter(e=>e.type===t);
+  const dmgAll=moves.filter(m=>m.cin&&m.cin!=='A'&&repInMonth(m.ret||m.out,key)).sort((a,b)=>String(b.ret||b.out).localeCompare(String(a.ret||a.out)));
+  const takenM=moves.filter(m=>m.out&&repInMonth(m.out,key));
+  return {key,isNow,moves,takenM,entries,cancelled,E,techs,tools,keeperRows,dmgAll,
+    overdue:by('OVERDUE'),late:by('LATE'),rejects:E.filter(e=>e.type==='REJECT'||e.type==='SAIDGOOD'),typed:by('TYPED'),noPhone:by('NOPHONE'),slowIn:by('SLOWIN'),
+    dmg:E.filter(e=>e.type==='DAMAGE'||e.type==='DEFECT'||e.type==='MISSING'),
+    alerts:E.filter(e=>e.pts>0),problemTechs:techs.filter(p=>p.pts>0),
+    returned:moves.filter(m=>m.ret&&repInMonth(m.ret,key)),stillOut:moves.filter(outAtEnd),waiting:isNow?moves.filter(m=>m.status==='PENDING'):[]};
 }
+/* ---------- small view helpers ---------- */
+const repToolName=tid=>{ const t=toolById(tid); return t?(t[T_NAME]||''):''; };
+const repTag=x=>esc(x.tid)+(x.unit?'-'+esc(x.unit):'');
+function repReasons(p){ const r=[];
+  if(p.overdue) r.push(p.overdue+' overdue now'); if(p.late) r.push(p.late+' late (total '+repH1(p.lateH)+')');
+  if(p.missing) r.push(p.missing+' missing'); if(p.damaged) r.push(p.damaged+' damaged'); if(p.defect) r.push(p.defect+' defect');
+  if(p.saidGood) r.push(p.saidGood+' said good - not accepted'); if(p.rejected-p.saidGood>0) r.push((p.rejected-p.saidGood)+' return not accepted');
+  if(p.typed) r.push(p.typed+' ID typed'); if(p.noPhone) r.push(p.noPhone+' no phone'); if(p.slowIn) r.push(p.slowIn+' handed in late');
+  return r; }
+const repSev=pts=>pts>=6?'out':pts>=3?'pend':pts>0?'blue':'instore';
+function repEventRow(e,key,showTech){
+  const col=e.pts>=3?'var(--red)':e.pts>=2?'var(--amber)':'var(--blue)';
+  return `<div class="rec rp-ev" style="border-left:4px solid ${col}">
+    <div class="hd"><span class="badge ${e.pts>=3?'out':e.pts>=2?'pend':'blue'}">${esc(REP_WORD[e.type]||e.type)}</span><span class="rp-when">${fmtTime(e.at)}</span></div>
+    ${showTech?`<div class="sub rp-link" onclick="repTech('${key}','${repQ(repKeyOf(e))}')"><b class="tn">${esc(e.tech)}</b> · ${esc(e.sec)}${e.techId?' · ID '+esc(e.techId):''} ›</div>`:''}
+    ${e.tid?`<div class="sub rp-link" onclick="repTool('${key}','${repQ(e.tid)}')">Tool <b>${repTag(e)}</b> ${esc(repToolName(e.tid))} ›</div>`:''}
+    <div class="sub">${esc(e.text)}${e.keeper?' · store keeper <b>'+esc(e.keeper)+'</b>':''}</div></div>`;
+}
+function repTechRow(p,key,i){
+  const rs=repReasons(p);
+  return `<button class="rp-row" onclick="repTech('${key}','${repQ(p.key)}')">
+    <span class="rp-rank">${i!=null?i+1:''}</span>
+    <span class="rp-main"><b>${esc(p.tech)}</b><small>${esc(p.sec)}${p.techId?' · ID '+esc(p.techId):''} · took ${p.taken} tool${p.taken!==1?'s':''}</small>
+      ${rs.length?`<small class="rp-why">${esc(rs.join(' · '))}</small>`:'<small style="color:var(--green);font-weight:700">No problem this month</small>'}</span>
+    <span class="badge ${repSev(p.pts)}">${p.pts} pt${p.pts!==1?'s':''}</span><span class="rp-ar">›</span></button>`;
+}
+const repAnim=quiet=>quiet?'':' rp-slide';
+/* ---------- the subjects ---------- */
+const REP_SUBJ=[
+  ['problems','Problem technicians','Who made mistakes this month, worst first',d=>d.problemTechs.length,'red'],
+  ['alerts','Cheat & mistake alerts','Every suspicious or wrong action, newest first',d=>d.alerts.length,'red'],
+  ['overdue','Overdue now','Tools still with a technician past '+OVERDUE_H+' hours',d=>d.overdue.length,'red'],
+  ['late','Late returns','Came back after more than '+OVERDUE_H+' hours',d=>d.late.length,'amber'],
+  ['damage','Damaged & missing','Reported not good, with the reason and if it was replaced',d=>d.dmg.length,'red'],
+  ['rejects','Returns not accepted','The store keeper sent the tool back to the technician',d=>d.rejects.length,'amber'],
+  ['slowin','Handed in late to the store keeper','Marked returned, but the store keeper got it more than '+REP_RECEIPT_H+' h later',d=>d.slowIn.length,'amber'],
+  ['typed','ID typed, not scanned','Check the ID was really his',d=>d.typed.length,'amber'],
+  ['nophone','Came without phone','Tool given by the store keeper by ID',d=>d.noPhone.length,'amber'],
+  ['techs','All technicians','Full month profile of every technician',d=>d.techs.length,''],
+  ['tools','Tools','Most used, most damaged, most often late',d=>d.tools.length,''],
+  ['keepers','Store keepers','Who gave, took back and refused tools',d=>d.keeperRows.filter(r=>r.given+r.taken+r.rejected).length,''],
+  ['visits','Cabin visits','Every time a technician entered the cabin',d=>d.entries.length,''],
+  ['moves','All tool movements','Complete list - every tool taken this month',d=>d.takenM.length,'']
+];
 function reportPick(){
   curStoreView=reportPick;setTitle('Monthly report','Ready any day of the month');
   const keys=last3Months();const cur=monthKey(new Date());
   $('view').innerHTML=`<button class="back" onclick="dash()">‹ Dashboard</button>
-    <div class="alert info">Reports stay ready at all times. Open this month to see the situation up to today, or open a past month.</div>
+    <div class="alert info">The report shows everything that happened in the tool store in that month. Open this month to see it up to today.</div>
     ${keys.map(k=>{const d=monthData(k);const isNow=k===cur;
       return `<button class="rolebtn" onclick="reportView('${k}')" style="margin-bottom:12px">
         <span class="ic ${isNow?'store':'tech'}">${isNow?'●':'▤'}</span>
         <span><span class="t">${monthLabel(k)}${isNow?' — running':''}</span>
-        <span class="d">${d.moves.length} tool movement${d.moves.length!==1?'s':''} · ${d.damaged.length} damaged · ${d.missing.length} missing</span></span>
+        <span class="d">${d.takenM.length} tool${d.takenM.length!==1?'s':''} taken · ${d.alerts.length} alert${d.alerts.length!==1?'s':''} · ${d.problemTechs.length} technician${d.problemTechs.length!==1?'s':''} with problems</span></span>
         <span class="ar">›</span></button>`;}).join('')}
-    <p class="muted center" style="margin-top:6px">Only the last three months are kept ready.</p>`;
+    <p class="muted center" style="margin-top:6px">The last three months are kept ready.</p>`;
 }
-function reportView(key){
-  curStoreView=()=>reportView(key);
+function reportView(key,quiet){
+  curStoreView=()=>reportView(key,true);
   const d=monthData(key);const now=new Date();
-  const isNow=key===monthKey(now);
-  setTitle(monthLabel(key),isNow?'Up to today':'Full month');
-  const line=(k,v,col)=>`<div class="kv"><span class="k">${k}</span><span class="v"${col?` style="color:${col}"`:''}>${v}</span></div>`;
-  let html=`<button class="back" onclick="reportPick()">‹ All months</button>
+  setTitle(monthLabel(key),d.isNow?'Up to today':'Full month');
+  const tile=(n,l,c)=>`<div class="stat ${c||''}"><div class="n">${n}</div><div class="l">${l}</div></div>`;
+  $('view').innerHTML=`<div class="${repAnim(quiet).trim()}"><button class="back" onclick="reportPick()">‹ All months</button>
     <div class="idcard"><div class="nm">${monthLabel(key)}</div>
-      <div class="meta">Tool situation report${isNow?' · up to '+now.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}):''}</div>
-      <div class="badge">${d.moves.length} movement${d.moves.length!==1?'s':''}</div></div>
-    <div class="card"><h3>Summary</h3>
-      ${line('Cabin visits',d.entries.length)}
-      ${line('Tools taken',d.moves.length)}
-      ${line('Returned and received',d.returned.length,'var(--green)')}
-      ${line('Returned · waiting for receipt',d.waiting.length,d.waiting.length?'var(--amber)':'')}
-      ${line('Still out',d.stillOut.length,d.stillOut.length?'var(--amber)':'')}
-      ${line('Overdue now',d.overdue.length,d.overdue.length?'var(--red)':'')}
-      ${line('Damaged reported',d.dmgAll.length,d.dmgAll.length?'var(--red)':'')}
-      ${line('Still damaged',d.dmgOpen.length,d.dmgOpen.length?'var(--red)':'')}
-      ${line('Replaced with new',d.dmgDone.length,'')}
-      ${line('Missing / lost',d.missing.length,d.missing.length?'var(--red)':'')}
-      ${line('Tools given without phone',d.noPhone.length,d.noPhone.length?'var(--red)':'')}
-    </div>`;
-  const listBlock=(title,rows,fn,emptyMsg)=>{
-    return `<div class="card" style="padding:6px 16px"><h3 style="margin:14px 2px 6px">${title} (${rows.length})</h3>`+
-      (rows.length?rows.map(fn).join(''):`<div class="empty" style="padding:22px">${emptyMsg}</div>`)+`</div>`;
-  };
-  const dmgRow=m=>{const t=toolById(m.tid)||[m.tid,'',''];
-    return `<div class="rec"><div class="hd"><span class="rid">${esc(m.tid)}</span><span class="rname">${esc(t[T_NAME]||'')}</span><span class="badge out">${m.cin}</span></div>
-      <div class="sub">${techTag(m)} · returned ${fmtTime(m.ret||m.out)}</div>
-      ${m.note?`<div class="sub">Defect: ${esc(m.note)}</div>`:''}</div>`;};
-  // ---- DAMAGED & REPLACED - written so anyone can read it in five seconds ----
-  html+=`<div class="card" style="padding:6px 16px">
-    <h3 style="margin:14px 2px 4px">Damaged &amp; replaced (${d.dmgAll.length})</h3>
-    <p class="muted" style="margin:0 0 10px;line-height:1.5">Every tool a technician reported as not good this month, in his own words.</p>
-    <div class="stats" style="margin-bottom:6px">
-      <div class="stat red"><div class="n">${d.dmgOpen.length}</div><div class="l">Still damaged</div></div>
-      <div class="stat green"><div class="n">${d.dmgDone.length}</div><div class="l">Replaced with new</div></div>
-      <div class="stat red"><div class="n">${d.missing.length}</div><div class="l">Missing / lost</div></div>
-    </div>`;
-  html+= d.dmgAll.length ? d.dmgAll.map(m=>{
-      const t=toolById(m.tid)||[m.tid,'',''];
-      const word=GRADE_WORD[m.cin]||m.cin;
-      return `<div class="rec" style="border-left:4px solid ${m.dmgFixed?'var(--green)':(m.cin==='D'?'var(--red)':'var(--amber)')};padding-left:10px">
-        <div class="hd"><span class="rid">${esc(m.tid)}</span><span class="rname">${esc(t[T_NAME]||'')}</span>
-          <span class="badge ${m.dmgFixed?'instore':'out'}">${m.dmgFixed?'Replaced':m.cin+' \u00b7 '+word}</span></div>
-        <div class="sub">${techTag(m)} \u00b7 reported ${fmtTime(m.ret||m.out)}</div>
-        ${m.note?`<div class="sub"><b>Reason:</b> ${esc(m.note)}</div>`:'<div class="sub" style="font-style:italic">no reason typed</div>'}
-        ${m.dmgFixed?`<div class="sub" style="color:var(--green);font-weight:700">Replaced with new by ${esc(m.dmgFixedBy||'')} \u00b7 ${fmtTime(m.dmgFixedAt)}</div>`:
-                     `<div class="sub" style="color:var(--red);font-weight:700">NOT replaced yet</div>`}
-      </div>`;}).join('')
-    : '<div class="empty" style="padding:22px">No tool was reported damaged this month</div>';
-  html+=`</div>`;
-  // ---- technicians who came without a phone ----
-  html+=`<div class="card"><h3>Came without phone (${d.noPhoneRows.length})</h3>`;
-  html+= d.noPhoneRows.length ? d.noPhoneRows.map(r=>`
-      <div class="rec"><div class="hd">
-        <span class="rname">${esc(r.tech)}</span>
-        <span class="badge out">${r.times}&times;</span></div>
-        <div class="sub">ID ${esc(r.id||'')} &middot; ${esc(r.sec||'')} &middot; tools: ${r.tools.map(esc).join(', ')}</div>
-      </div>`).join('')
-    : '<div class="empty">Every technician used his own phone this month</div>';
-  html+=`<p class="muted" style="margin:12px 0 0;line-height:1.5">These technicians were issued tools manually because they did not bring their phone.</p></div>`;
-  // ---- which store keeper ran the store ----
-  html+=`<div class="card"><h3>By store keeper (${d.keeperRows.filter(r=>r.given+r.taken).length} of ${d.keeperRows.length} active)</h3>`;
-  html+= d.keeperRows.map(r=>`
-      <div class="rec"><div class="hd">
-        <span class="rname">${esc(r.short)}</span>
-        <span class="badge ${r.given+r.taken?'instore':''}">${r.given+r.taken} action${r.given+r.taken===1?'':'s'}</span></div>
-        <div class="sub">${esc(r.title)} &middot; ID ${esc(r.id)} &middot; gave ${r.given} &middot; took back ${r.taken}${r.noPhone?' &middot; no-phone '+r.noPhone:''}</div>
-      </div>`).join('');
-  html+= d.unstamped?`<div class="alert warn" style="margin:10px 0 0">${d.unstamped} older record${d.unstamped===1?'':'s'} carry no store keeper name — they were made before each man had his own PIN.</div>`:'';
-  html+=`<p class="muted" style="margin:12px 0 0;line-height:1.5">Every hand over and every take back is stamped with the store keeper who did it.</p></div>`;
-  html+=listBlock('Overdue now',d.overdue,m=>{const t=toolById(m.tid)||[m.tid,'',''];
-    return `<div class="rec"><div class="hd"><span class="rid">${esc(m.tid)}</span><span class="rname">${esc(t[T_NAME]||'')}</span><span class="badge out">Overdue</span></div>
-      <div class="sub">${techTag(m)} · out ${fmtTime(m.out)} · ${ago(m.out)} ago</div></div>`;},'Nothing overdue');
-  html+=listBlock('By technician',d.techRows,r=>
-    `<div class="rec"><div class="hd"><span class="rname">${esc(r.tech)}</span><span class="badge ${r.damaged||r.missing?'out':'instore'}">${r.taken} taken</span></div>
-      <div class="sub">${esc(r.sec)} · returned ${r.returned} · still out ${r.out}${r.damaged?' · damaged '+r.damaged:''}${r.missing?' · missing '+r.missing:''}</div></div>`,
-    'No technician activity');
-  html+=listBlock('Cabin visits by technician',d.visitRows,r=>
-    `<div class="rec"><div class="hd"><span class="rname">${esc(r.tech)}</span><span class="badge ${r.tools?'set':'none'}">${r.visits} visit${r.visits!==1?'s':''}</span></div>
-      <div class="sub">${esc(r.sec)} · ID ${esc(r.techId||'')} · on ${r.days.size} day${r.days.size!==1?'s':''} · last ${fmtTime(r.last)} · ${r.tools?r.tools+' tool'+(r.tools!==1?'s':'')+' taken':'no tool taken'}</div></div>`,
-    'No cabin visits this month');
-  html+=listBlock('Most used tools',d.toolRows,([tid,n])=>{const t=toolById(tid)||[tid,'',''];
-    return `<div class="rec"><div class="hd"><span class="rid">${esc(tid)}</span><span class="rname">${esc(t[T_NAME]||'')}</span><span class="badge set">${n}×</span></div></div>`;},
-    'No tools taken');
-  html+=`<button class="btn primary" onclick="downloadReport('${key}')">Download this month</button>
-    <p class="muted center" style="margin-top:10px">Opens in Excel. One file per month.</p>`;
-  $('view').innerHTML=html;
+      <div class="meta">Tool store report${d.isNow?' · up to '+now.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):' · full month'}</div></div>
+    <div class="stats">${tile(d.takenM.length,'Tools taken')}${tile(d.returned.length,'Returned','green')}${tile(d.overdue.length,'Overdue now',d.overdue.length?'red':'')}
+      ${tile(d.late.length,'Late returns',d.late.length?'red':'')}${tile(d.dmg.length,'Damaged / missing',d.dmg.length?'red':'')}${tile(d.alerts.length,'Alerts',d.alerts.length?'red':'')}</div>
+    <div class="card rp-subj" style="padding:4px 0">
+      ${REP_SUBJ.map(([id,title,hint,cnt,col])=>{ const n=cnt(d);
+        return `<button class="rp-row" id="rs_${id}" onclick="repSubject('${key}','${id}')">
+          <span class="rp-main"><b>${title}</b><small>${hint}</small></span>
+          <span class="rp-n ${n&&col?col:''}">${n}</span><span class="rp-ar">›</span></button>`; }).join('')}
+    </div>
+    <button class="btn primary" onclick="downloadReport('${key}')">Download this month (Excel)</button>
+    <p class="muted center" style="margin-top:10px">One file with every list in this report.</p></div>`;
+  if(!quiet) window.scrollTo(0,0);
 }
-function csvCell(v){v=(v==null?'':String(v));if(/^[=+\-@\t\r]/.test(v))v="'"+v;   // never let a note be read as a formula
+function repSubject(key,id,quiet){
+  curStoreView=()=>repSubject(key,id,true);
+  const d=monthData(key); const S=REP_SUBJ.find(s=>s[0]===id); if(!S){ reportView(key); return; }
+  setTitle(S[1],monthLabel(key));
+  const empty=msg=>`<div class="empty" style="padding:30px 10px">${msg}</div>`;
+  let body='';
+  if(id==='problems'){
+    body=d.problemTechs.length?d.problemTechs.map((p,i)=>repTechRow(p,key,i)).join(''):empty('No technician made a mistake this month');
+    body+=`<p class="muted" style="margin:12px 4px;line-height:1.6"><b>Points:</b> overdue 3 (+1 for every full day late, up to 10) · late return 2 (+1 for every full day late, up to 6) · missing 3 · said good but not accepted 3 · damaged 2 · return not accepted 2 · defect 1 · ID typed 1 a day · no phone 1 a day · handed in late 1</p>`;
+  }
+  else if(id==='alerts') body=d.alerts.length?d.alerts.map(e=>repEventRow(e,key,true)).join(''):empty('No alert this month');
+  else if(['overdue','late','rejects','typed','nophone','slowin','damage'].includes(id)){
+    const L={overdue:d.overdue,late:d.late,rejects:d.rejects,typed:d.typed,nophone:d.noPhone,slowin:d.slowIn,damage:d.dmg}[id];
+    body=L.length?L.map(e=>repEventRow(e,key,true)).join(''):empty('Nothing this month');
+  }
+  else if(id==='techs') body=d.techs.length?d.techs.slice().sort((a,b)=>a.tech.localeCompare(b.tech)).map(p=>repTechRow(p,key,null)).join(''):empty('No technician activity');
+  else if(id==='tools') body=d.tools.length?d.tools.map(t=>`<button class="rp-row" onclick="repTool('${key}','${repQ(t.tid)}')">
+      <span class="rp-main"><b>${esc(t.tid)} · ${esc(repToolName(t.tid))}</b><small>taken ${t.taken}× by ${t.men.size} m${t.men.size!==1?'en':'an'}${t.late?' · late '+t.late:''}${t.overdue?' · overdue '+t.overdue:''}${t.damage?' · damaged/missing '+t.damage:''}${t.rejected?' · not accepted '+t.rejected:''}</small></span>
+      <span class="badge ${t.damage||t.overdue?'out':t.late||t.rejected?'pend':'instore'}">${t.taken}×</span><span class="rp-ar">›</span></button>`).join(''):empty('No tool taken');
+  else if(id==='keepers') body=d.keeperRows.map(r=>`<div class="rec"><div class="hd"><span class="rname">${esc(r.short)}</span><span class="badge ${r.given+r.taken?'instore':'none'}">${r.given+r.taken} action${r.given+r.taken===1?'':'s'}</span></div>
+      <div class="sub">${esc(r.title)} · ID ${esc(r.id)} · gave ${r.given} · took back ${r.taken} · refused ${r.rejected}${r.noPhone?' · no-phone '+r.noPhone:''}</div></div>`).join('');
+  else if(id==='visits') body=d.entries.length?d.entries.slice().sort((a,b)=>String(b.at).localeCompare(String(a.at))).map(e=>`<div class="rec rp-link" onclick="repTech('${key}','${repQ(repKeyOf(e))}')"><div class="hd"><span class="rname">${esc(e.tech)}</span><span class="rp-when">${fmtTime(e.at)}</span></div>
+      <div class="sub">${esc(e.sec||'')} · ID ${esc(e.techId||'')} · ${e.noPhone?'no phone - entered by store keeper':e.idBy==='typed'?'<b style="color:var(--amber)">ID typed</b>':'scanned the cabin QR'}</div></div>`).join(''):empty('No cabin visit');
+  else if(id==='moves') body=d.takenM.length?d.takenM.slice().sort((a,b)=>String(b.out).localeCompare(String(a.out))).map(m=>repMoveRow(m,key,true)).join(''):empty('No tool taken');
+  $('view').innerHTML=`<div class="${repAnim(quiet).trim()}"><button class="back" onclick="reportView('${key}')">‹ ${monthLabel(key)} report</button>
+    <div class="card" style="padding:4px 14px"><h3 style="margin:14px 2px 2px">${S[1]} (${S[3](d)})</h3><p class="muted" style="margin:0 2px 8px">${S[2]}</p>${body}</div></div>`;
+  if(!quiet) window.scrollTo(0,0);
+}
+function repMoveRow(m,key,showTech){
+  const L=repLate(m), st=m.status==='IN'?'Received':m.status==='PENDING'?'Returned - waiting':m.status==='OUT'?(L?'OVERDUE':'With him'):'Requested';
+  const rj=repRejList(m);
+  return `<div class="rec"><div class="hd"><span class="rid rp-link" onclick="repTool('${key}','${repQ(m.tid)}')">${esc(m.tid)}${m.unit?'-'+esc(m.unit):''}</span><span class="rname">${esc(repToolName(m.tid))}</span>
+      <span class="badge ${m.status==='IN'?(L?'pend':'instore'):m.status==='OUT'?(L?'out':'blue'):'pend'}">${st}</span></div>
+    ${showTech?`<div class="sub rp-link" onclick="repTech('${key}','${repQ(repKeyOf(m))}')"><b class="tn">${esc(m.tech||'')}</b> · ${esc(m.sec||'')} ›</div>`:''}
+    <div class="sub">Out ${fmtTime(m.out)}${m.outBy?' by '+esc(m.outBy):''}${m.ret?' · returned '+fmtTime(m.ret):''}${m.recvAt&&m.status==='IN'?' · received '+fmtTime(m.recvAt)+(m.inBy?' by '+esc(m.inBy):''):''}</div>
+    ${L?`<div class="sub" style="color:var(--red);font-weight:700">Held ${repH1(L.held)} - ${repH1(L.over)} over the ${OVERDUE_H} h limit</div>`:''}
+    ${m.cin&&m.cin!=='A'?`<div class="sub" style="color:var(--red);font-weight:700">${esc(GRADE_WORD[m.cin]||m.cin)}${m.note?': '+esc(m.note):''}</div>`:''}
+    ${rj.length?`<div class="sub" style="color:var(--amber);font-weight:700">Return not accepted ${rj.length}×</div>`:''}
+    ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}</div>`;
+}
+/* ---------- one technician, the whole month ---------- */
+function repTech(key,tk,quiet){
+  try{ tk=decodeURIComponent(tk); }catch(e){}
+  curStoreView=()=>repTech(key,repQ(tk),true);
+  const d=monthData(key); const p=d.techs.find(x=>x.key===tk);
+  const cell=(n,l,bad)=>`<div class="stat ${bad&&n?'red':''}"><div class="n">${n}</div><div class="l">${l}</div></div>`;
+  if(!p){ $('view').innerHTML=`<button class="back" onclick="reportView('${key}')">‹ Report</button><div class="empty">No activity for this technician in ${monthLabel(key)}</div>`; return; }
+  setTitle(p.tech,monthLabel(key));
+  const ev=d.E.filter(e=>repKeyOf(e)===tk);
+  const mv=d.moves.filter(m=>repKeyOf(m)===tk).sort((a,b)=>String(b.out||b.req).localeCompare(String(a.out||a.req)));
+  const rs=repReasons(p);
+  const verdict=p.pts?`<div class="alert ${p.pts>=6?'red':'warn'}"><b>${p.pts} mistake point${p.pts!==1?'s':''} this month.</b><br>${esc(rs.join(' · '))}</div>`
+                     :`<div class="alert green"><b>No problem this month.</b> Every tool came back on time and in good condition.</div>`;
+  $('view').innerHTML=`<div class="${repAnim(quiet).trim()}"><button class="back" onclick="repSubject('${key}','techs')">‹ All technicians</button>
+    <div class="idcard"><div class="nm">${esc(p.tech)}</div><div class="meta">${esc(p.sec)} — ${SEC_FULL[p.sec]||''}${p.techId?' · ID '+esc(p.techId):''}</div><div class="badge">${monthLabel(key)}</div></div>
+    ${verdict}
+    <div class="stats">${cell(p.taken,'Tools taken')}${cell(p.onTime,'Back on time')}${cell(p.late,'Late returns',1)}
+      ${cell(p.overdue,'Overdue now',1)}${cell(p.damaged+p.defect+p.missing,'Damaged / missing',1)}${cell(p.rejected,'Not accepted',1)}
+      ${cell(p.typed,'ID typed',1)}${cell(p.noPhone,'No phone',1)}${cell(p.visits,'Cabin visits')}</div>
+    ${p.late||p.overdue?`<div class="card">${p.late?`<div class="kv"><span class="k">Late returns - total time late</span><span class="v" style="color:var(--red)">${repH1(p.lateH)}</span></div>`:''}${p.overdue?`<div class="kv"><span class="k">Overdue tools - time late so far</span><span class="v" style="color:var(--red)">${repH1(p.odH)}</span></div>`:''}<div class="kv"><span class="k">Worst single tool</span><span class="v" style="color:var(--red)">${repH1(p.worstLate)} over the ${OVERDUE_H} h limit</span></div></div>`:''}
+    <div class="card" style="padding:4px 14px"><h3 style="margin:14px 2px 6px">Mistakes &amp; alerts (${ev.filter(e=>e.pts).length})</h3>${ev.filter(e=>e.pts).map(e=>repEventRow(e,key,false)).join('')||'<div class="empty" style="padding:22px">None</div>'}</div>
+    <div class="card" style="padding:4px 14px"><h3 style="margin:14px 2px 6px">Every tool he had this month (${mv.length})</h3>${mv.map(m=>repMoveRow(m,key,false)).join('')||'<div class="empty" style="padding:22px">None</div>'}</div></div>`;
+  if(!quiet) window.scrollTo(0,0);
+}
+/* ---------- one tool, the whole month ---------- */
+function repTool(key,tid,quiet){
+  try{ tid=decodeURIComponent(tid); }catch(e){}
+  curStoreView=()=>repTool(key,repQ(tid),true);
+  const d=monthData(key); const t=toolById(tid)||[tid,'',''];
+  setTitle('Tool '+tid,monthLabel(key));
+  const mv=d.moves.filter(m=>m.tid===tid).sort((a,b)=>String(b.out||b.req).localeCompare(String(a.out||a.req)));
+  const ev=d.E.filter(e=>e.tid===tid&&e.pts);
+  $('view').innerHTML=`<div class="${repAnim(quiet).trim()}"><button class="back" onclick="repSubject('${key}','tools')">‹ All tools</button>
+    <div class="card detail"><div class="tid">${esc(tid)}</div><div class="tname">${esc(t[T_NAME]||'')}</div><div class="meta">${meta(t)}</div></div>
+    <div class="card" style="padding:4px 14px"><h3 style="margin:14px 2px 6px">Problems with this tool (${ev.length})</h3>${ev.map(e=>repEventRow(e,key,true)).join('')||'<div class="empty" style="padding:22px">None this month</div>'}</div>
+    <div class="card" style="padding:4px 14px"><h3 style="margin:14px 2px 6px">Who had it this month (${mv.length})</h3>${mv.map(m=>repMoveRow(m,key,true)).join('')||'<div class="empty" style="padding:22px">Not taken this month</div>'}</div></div>`;
+  if(!quiet) window.scrollTo(0,0);
+}
+function csvCell(v){v=(v==null?'':String(v));if(/^[=+\-@\t\r]/.test(v))v="'"+v;   /* never let a note be read as a formula */
   return '"'+v.replace(/"/g,'""')+'"';}
 function downloadReport(key){
   const d=monthData(key);const rows=[];
   const push=(...a)=>rows.push(a.map(csvCell).join(','));
-  push('TOOL CONTROL — MONTHLY REPORT');
-  push('Month',monthLabel(key));
-  push('Generated',new Date().toLocaleString('en-GB'));
-  push('');
+  push('TOOL STORE - MONTHLY REPORT');
+  push('Month',monthLabel(key)); push('Generated',new Date().toLocaleString('en-GB')); push('');
   push('SUMMARY');
-  push('Cabin visits',d.entries.length);
-  push('Tools taken',d.moves.length);
-  push('Returned and received',d.returned.length);
-  push('Returned - waiting for receipt',d.waiting.length);
-  push('Still out',d.stillOut.length);
-  push('Overdue now',d.overdue.length);
-  push('Damaged reported',d.dmgAll.length);
-  push('Still damaged',d.dmgOpen.length);
-  push('Replaced with new',d.dmgDone.length);
-  push('Missing / lost',d.missing.length);
-  push('Tools given without phone',d.noPhone.length);
+  push('Tools taken',d.takenM.length); push('Returned',d.returned.length); push('Overdue now',d.overdue.length); push('Late returns',d.late.length);
+  push('Damaged / defect / missing',d.dmg.length); push('Returns not accepted',d.rejects.length); push('Handed in late to store keeper',d.slowIn.length);
+  push('ID typed (not scanned)',d.typed.length); push('Came without phone',d.noPhone.length); push('Cabin visits',d.entries.length); push('Alerts in total',d.alerts.length); push('');
+  push('PROBLEM TECHNICIANS (worst first)');
+  push('Rank','Technician','ID','Section','Mistake points','Tools taken','Back on time','Late returns','Total hours late','Worst hours late','Overdue now','Damaged','Defect','Missing','Not accepted','Said good - not accepted','ID typed','No phone','Handed in late','Cabin visits','Reasons');
+  d.techs.filter(p=>p.pts>0).forEach((p,i)=>push(i+1,p.tech,p.techId,p.sec,p.pts,p.taken,p.onTime,p.late,repH1(p.lateH),p.worstLate?repH1(p.worstLate):'',p.overdue,p.damaged,p.defect,p.missing,p.rejected,p.saidGood,p.typed,p.noPhone,p.slowIn,p.visits,repReasons(p).join(' / ')));
   push('');
-  push('BY STORE KEEPER');
-  push('Emp No','Store keeper','Title','Tools given','Tools taken back','No-phone issues');
-  d.keeperRows.forEach(r=>push(r.id,r.name,r.title,r.given,r.taken,r.noPhone));
+  push('ALL ALERTS (newest first)');
+  push('Date and time','What happened','Points','Technician','ID','Section','Tool','Piece','Tool name','Details','Store keeper');
+  d.alerts.forEach(e=>push(fmtTime(e.at),REP_WORD[e.type]||e.type,e.pts,e.tech,e.techId,e.sec,e.tid,e.unit,repToolName(e.tid),e.text,e.keeper||''));
   push('');
-  push('DAMAGED & REPLACED');
-  push('Still damaged',d.dmgOpen.length,'Replaced with new',d.dmgDone.length,'Missing / lost',d.missing.length);
-  push('Tool No','Piece','Tool name','Grade','What it means','Technician','Section','Reported','Reason the technician typed','Replaced?','Replaced by','Replaced when');
-  d.dmgAll.forEach(m=>{const t=toolById(m.tid)||[m.tid,'',''];
-    push(m.tid,m.unit||'',t[T_NAME]||'',m.cin,GRADE_WORD[m.cin]||'',m.tech,m.sec,fmtTime(m.ret||m.out),m.note||'',
-         m.dmgFixed?'YES':'NO',m.dmgFixedBy||'',m.dmgFixed?fmtTime(m.dmgFixedAt):'');});
+  push('ALL TECHNICIANS');
+  push('Technician','ID','Section','Tools taken','Returned','Back on time','Still out','Late returns','Overdue now','Damaged/defect/missing','Not accepted','ID typed','No phone','Cabin visits','Mistake points');
+  d.techs.slice().sort((a,b)=>a.tech.localeCompare(b.tech)).forEach(p=>push(p.tech,p.techId,p.sec,p.taken,p.returned,p.onTime,p.stillOut,p.late,p.overdue,p.damaged+p.defect+p.missing,p.rejected,p.typed,p.noPhone,p.visits,p.pts));
   push('');
-  push('CAME WITHOUT PHONE');
-  push('Technician','ID','Section','Times','Tools');
-  d.noPhoneRows.forEach(r=>push(r.tech,r.id||'',r.sec||'',r.times,r.tools.join(' ')));
+  push('DAMAGED & MISSING');
+  push('Tool','Piece','Tool name','Grade','What happened','Technician','ID','Section','Reported','Details','Replaced?','Replaced by','Replaced when');
+  d.dmg.forEach(e=>{ const m=LOG.find(x=>x.id===e.mid)||{};
+    push(e.tid,e.unit||'',repToolName(e.tid),e.type==='MISSING'?'D':e.type==='DAMAGE'?'C':'B',REP_WORD[e.type]||e.type,e.tech,e.techId,e.sec,fmtTime(e.at),e.text,m.dmgFixed?'YES':'NO',m.dmgFixedBy||'',m.dmgFixed?fmtTime(m.dmgFixedAt):''); });
   push('');
-  push('MISSING / LOST');
-  push('Tool ID','Piece','Tool name','Technician','Section','Reported','Note');
-  d.missing.forEach(m=>{const t=toolById(m.tid)||[m.tid,'',''];
-    push(m.tid,m.unit||'',t[T_NAME]||'',m.tech,m.sec,fmtTime(m.ret||m.out),m.note||'');});
+  push('TOOLS');
+  push('Tool','Tool name','Times taken','Different men','Late','Overdue','Damaged/missing','Not accepted');
+  d.tools.forEach(t=>push(t.tid,repToolName(t.tid),t.taken,t.men.size,t.late,t.overdue,t.damage,t.rejected));
   push('');
-  push('OVERDUE NOW');
-  push('Tool ID','Tool name','Technician','Section','Out since','Held');
-  d.overdue.forEach(m=>{const t=toolById(m.tid)||[m.tid,'',''];
-    push(m.tid,t[T_NAME]||'',m.tech,m.sec,fmtTime(m.out),ago(m.out));});
-  push('');
-  push('BY TECHNICIAN');
-  push('Technician','Section','Taken','Returned','Still out','Damaged','Missing');
-  d.techRows.forEach(r=>push(r.tech,r.sec,r.taken,r.returned,r.out,r.damaged,r.missing));
-  push('');
-  push('MOST USED TOOLS');
-  push('Tool ID','Tool name','Times taken');
-  d.toolRows.forEach(([tid,n])=>{const t=toolById(tid)||[tid,'',''];push(tid,t[T_NAME]||'',n);});
-  push('');
-  push('CABIN VISITS BY TECHNICIAN');
-  push('Technician','Technician ID','Section','Visits','Days','Last visit','Tools taken');
-  d.visitRows.forEach(r=>push(r.tech,r.techId||'',r.sec,r.visits,r.days.size,fmtTime(r.last),r.tools));
+  push('STORE KEEPERS');
+  push('Emp No','Store keeper','Title','Gave','Took back','Refused returns','No-phone issues');
+  d.keeperRows.forEach(r=>push(r.id,r.name,r.title,r.given,r.taken,r.rejected,r.noPhone));
   push('');
   push('EVERY CABIN ENTRY');
-  push('Date and time','Technician','Technician ID','Section','How he was identified','Entered by store keeper');
+  push('Date and time','Technician','ID','Section','How he was identified','Entered by store keeper');
   d.entries.slice().sort((a,b)=>String(a.at).localeCompare(String(b.at))).forEach(e=>
     push(fmtTime(e.at),e.tech,e.techId||'',e.sec,e.noPhone?'No phone':(e.idBy==='typed'?'ID typed':e.idBy==='scan'?'QR sticker':'Own phone link'),e.keeper||''));
   push('');
-  push('ALL MOVEMENTS');
-  push('Tool ID','Piece','Tool name','Technician','Technician ID','Section','Out','Given by','Returned','Received','Taken back by','Condition','Pieces','Pieces not returned','Note','No phone','Status');
-  d.moves.forEach(m=>{const t=toolById(m.tid)||[m.tid,'',''];
-    push(m.tid,m.unit||'',t[T_NAME]||'',m.tech,m.techId||'',m.sec,fmtTime(m.out),m.outBy||'',m.ret?fmtTime(m.ret):'',m.status==='IN'?fmtTime(m.recvAt||m.ret):'',m.inBy||'',m.cin||'',m.items||'',m.missPcs||'',m.note||'',m.noPhone?'YES':'',m.status);});
-  const csv='\ufeff'+rows.join('\r\n');
+  push('ALL TOOL MOVEMENTS');
+  push('Tool','Piece','Tool name','Technician','ID','Section','Requested','Out','Given by','Returned','Received','Taken back by','Hours held','Hours late','Condition','Note','Not accepted (times)','Pieces','Pieces not returned','No phone','ID typed','Status');
+  d.moves.slice().sort((a,b)=>String(a.out||a.req).localeCompare(String(b.out||b.req))).forEach(m=>{ const L=repLate(m);
+    const held=m.out?repHrs((m.ret?repT(m.ret):Date.now())-repT(m.out)):0;
+    push(m.tid,m.unit||'',repToolName(m.tid),m.tech,m.techId||'',m.sec,fmtTime(m.req),fmtTime(m.out),m.outBy||'',m.ret?fmtTime(m.ret):'',m.status==='IN'?fmtTime(m.recvAt||m.ret):'',m.inBy||'',
+      m.out?repH1(held):'',L?repH1(L.over):'',m.cin||'',m.note||'',repRejList(m).length||'',m.items||'',m.missPcs||'',m.noPhone?'YES':'',m.idBy==='typed'?'YES':'',m.status); });
+  const csv='﻿'+rows.join('\r\n');
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
@@ -2619,8 +2810,11 @@ async function cpSave(){
 }
 async function rej(id){ if(!requireKeeper())return;
   const m=LOG.find(x=>x.id===id); if(!m||m.status!=='PENDING'){toast('Already handled');return;}
+  const rjAt=new Date().toISOString();
+  const rjHist=(Array.isArray(m.rejHist)&&m.rejHist.length?m.rejHist:(m.rejAt?[{at:m.rejAt,by:m.rejBy||'',byId:m.rejById||'',cin:m.rejCin||null,note:m.rejNote||''}]:[]))
+    .concat([{at:rjAt,by:KEEPER.short,byId:KEEPER.id,cin:m.cin||null,note:m.note||''}]);
   window.DB.update(id,{status:'OUT',ret:null,cin:null,note:'',rejBy:KEEPER.short,rejById:KEEPER.id,
-    rejAt:new Date().toISOString(),rejCin:m.cin||null,rejNote:m.note||''}).catch(saveErr);
+    rejAt:rjAt,rejCin:m.cin||null,rejNote:m.note||'',rejN:rjHist.length,rejHist:rjHist}).catch(saveErr);
   toast('Sent back to technician'); }
 
 /* ================= FUSION INTRO (Ember Vortex x Golden Forge) ================= */
