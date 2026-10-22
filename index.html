@@ -385,6 +385,13 @@ button.btn[disabled]{opacity:.42;pointer-events:none}
 .rp-when{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--ink2)}
 .rp-link{cursor:pointer}.rp-link:active{opacity:.6}
 .rp-ev{padding-left:10px}
+.rp-nav{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 12px}
+.rp-back{flex:1 1 auto;background:#fff;border:1.5px solid var(--line);border-radius:11px;padding:11px 14px;font:inherit;font-size:14px;font-weight:700;color:var(--ink);text-align:left;cursor:pointer}
+.rp-back:active{background:#F1F3F6}.rp-back.rp-home{flex:0 0 auto;color:var(--ink2)}
+.rp-tile{cursor:pointer;transition:transform .1s}.rp-tile:active{transform:scale(.96)}.rp-tile.rp-on{outline:3px solid var(--ink);outline-offset:-1px}
+.rp-flash{animation:rpFlash 1.8s ease-out}@keyframes rpFlash{0%,35%{background:#FFE9A8}100%{background:transparent}}
+.rp-who{margin:6px 0 2px;padding:7px 10px;background:#F6F7F9;border-radius:9px;font-size:12.5px;line-height:1.5;color:#2A323D}
+.rp-who div{display:flex;gap:8px;flex-wrap:wrap}.rp-who span{flex:0 0 98px;color:var(--ink2);font-weight:700}
 #view{overflow-x:clip}   /* the slide-in never makes the page scroll sideways */
 .rp-slide{animation:rpIn .22s ease-out}
 @keyframes rpIn{from{transform:translateX(26px);opacity:0}to{transform:none;opacity:1}}
@@ -2195,8 +2202,8 @@ function repLate(m){
   if(held<=OVERDUE_H) return null;
   return {held,over:held-OVERDUE_H,open:!m.ret&&m.status==='OUT',at:m.ret||new Date(repT(m.out)+OVERDUE_H*3.6e6).toISOString()};
 }
-const REP_PTS={OVERDUE:3,MISSING:3,SAIDGOOD:3,REJECT:2,LATE:2,DAMAGE:2,DEFECT:1,TYPED:1,NOPHONE:1,SLOWIN:1};
-const REP_WORD={OVERDUE:'Overdue now',MISSING:'Missing / lost',SAIDGOOD:'Said GOOD - store keeper did not accept',REJECT:'Return not accepted',
+const REP_PTS={OVERDUE:3,MISSING:3,SAIDGOOD:3,REJECT:0,LATE:2,DAMAGE:2,DEFECT:1,TYPED:1,NOPHONE:1,SLOWIN:0};   /* v28: refused return / handed in late are not shown any more */
+const REP_WORD={OVERDUE:'Overdue now',MISSING:'Missing / lost',SAIDGOOD:'Said GOOD - it was not',REJECT:'Return not accepted',
   LATE:'Returned late',DAMAGE:'Damaged',DEFECT:'Defect',TYPED:'ID typed, not scanned',NOPHONE:'Came without phone',SLOWIN:'Handed in late to store keeper'};
 const repKeyOf=x=>String(x.techId||x.tech||'');
 const repMonthRange=key=>{ const [y,mo]=key.split('-').map(Number); return [new Date(y,mo-1,1).getTime(),new Date(y,mo,1).getTime()]; };
@@ -2289,26 +2296,40 @@ function monthData(key){
   return {key,isNow,moves,takenM,entries,cancelled,E,techs,tools,keeperRows,dmgAll,
     overdue:by('OVERDUE'),late:by('LATE'),rejects:E.filter(e=>e.type==='REJECT'||e.type==='SAIDGOOD'),typed:by('TYPED'),noPhone:by('NOPHONE'),slowIn:by('SLOWIN'),
     dmg:E.filter(e=>e.type==='DAMAGE'||e.type==='DEFECT'||e.type==='MISSING'),
-    alerts:E.filter(e=>e.pts>0),problemTechs:techs.filter(p=>p.pts>0),
+    alerts:E.filter(e=>e.pts>0),proc:E.filter(e=>e.type==='SAIDGOOD'||e.type==='TYPED'||e.type==='NOPHONE'),problemTechs:techs.filter(p=>p.pts>0),
     dueSoon:isNow?moves.filter(isDueSoon):[],conds:moves.filter(m=>m.ret&&repInMonth(m.ret,key)&&/^[ABCD]$/.test(String(m.cin||''))).sort((a,b)=>String(b.ret).localeCompare(String(a.ret))),returned:moves.filter(m=>m.ret&&repInMonth(m.ret,key)),stillOut:moves.filter(outAtEnd),waiting:isNow?moves.filter(m=>m.status==='PENDING'):[]};
 }
 /* ---------- small view helpers ---------- */
 const repToolName=tid=>{ const t=toolById(tid); return t?(t[T_NAME]||''):''; };
 const repTag=x=>esc(x.tid)+(x.unit?'-'+esc(x.unit):'');
-function repReasons(p){ const r=[];
-  if(p.overdue) r.push(p.overdue+' overdue now'); if(p.late) r.push(p.late+' late (total '+repH1(p.lateH)+')');
+function repReasons(p){ const r=[];                 /* plain words, worst first */
+  if(p.overdue) r.push(p.overdue+' tool'+(p.overdue>1?'s':'')+' overdue now');
+  if(p.late) r.push(p.late+' late return'+(p.late>1?'s':'')+' ('+repH1(p.lateH)+' late)');
   if(p.missing) r.push(p.missing+' missing'); if(p.damaged) r.push(p.damaged+' damaged'); if(p.defect) r.push(p.defect+' defect');
-  if(p.saidGood) r.push(p.saidGood+' said good - not accepted'); if(p.rejected-p.saidGood>0) r.push((p.rejected-p.saidGood)+' return not accepted');
-  if(p.typed) r.push(p.typed+' ID typed'); if(p.noPhone) r.push(p.noPhone+' no phone'); if(p.slowIn) r.push(p.slowIn+' handed in late');
+  if(p.saidGood) r.push(p.saidGood+'× said GOOD but it was not');
+  if(p.typed) r.push(p.typed+'× ID typed'); if(p.noPhone) r.push(p.noPhone+'× no phone');
   return r; }
 const repSev=pts=>pts>=6?'out':pts>=3?'pend':pts>0?'blue':'instore';
+/* v28: every tool line shows the full story - technician, who GAVE it, who TOOK IT BACK, times, how he came */
+const REP_HOW=m=>m.noPhone||m.idBy==='nophone'?'No phone - store keeper used his ID':m.idBy==='typed'?'<b style="color:var(--amber)">ID typed (not scanned)</b>':m.idBy==='scan'?'Own QR sticker':m.idBy==='link'?'Own phone link':'';
+function repWho(m){
+  if(!m||m.kind==='ENTRY') return m&&m.kind==='ENTRY'?`<div class="rp-who"><div><span>Cabin entry</span>${fmtTime(m.at)}${m.keeper?' · by <b>'+esc(m.keeper)+'</b>':''}</div>${REP_HOW(m)?`<div><span>How he came</span>${REP_HOW(m)}</div>`:''}</div>`:'';
+  const held=m.out?repHrs((m.ret?repT(m.ret):Date.now())-repT(m.out)):0;
+  return `<div class="rp-who">
+    <div><span>Given by</span>${m.outBy?'<b>'+esc(m.outBy)+'</b> · ':''}${m.out?fmtTime(m.out):'not given yet'}</div>
+    <div><span>Returned</span>${m.ret?fmtTime(m.ret)+(m.out?' · held '+repH1(held):''):'<b style="color:var(--red)">not yet</b>'+(m.out?' · out '+repH1(held):'')}</div>
+    <div><span>Taken back by</span>${m.status==='IN'?'<b>'+esc(m.inBy||'store keeper')+'</b> · '+fmtTime(m.recvAt||m.ret):m.ret?'<b style="color:var(--amber)">waiting for the store keeper</b>':'—'}</div>
+    ${m.cin?`<div><span>Condition</span>${gradeBadge(m.cin)}${m.note?' '+esc(m.note):''}</div>`:''}
+    ${REP_HOW(m)?`<div><span>How he came</span>${REP_HOW(m)}</div>`:''}</div>`;
+}
 function repEventRow(e,key,showTech){
   const col=e.pts>=3?'var(--red)':e.pts>=2?'var(--amber)':'var(--blue)';
+  const m=LOG.find(x=>x.id===e.mid);
   return `<div class="rec rp-ev" style="border-left:4px solid ${col}">
     <div class="hd"><span class="badge ${e.pts>=3?'out':e.pts>=2?'pend':'blue'}">${esc(REP_WORD[e.type]||e.type)}</span><span class="rp-when">${fmtTime(e.at)}</span></div>
     ${showTech?`<div class="sub rp-link" onclick="repTech('${key}','${repQ(repKeyOf(e))}')"><b class="tn">${esc(e.tech)}</b> · ${esc(e.sec)}${e.techId?' · ID '+esc(e.techId):''} ›</div>`:''}
     ${e.tid?`<div class="sub rp-link" onclick="repTool('${key}','${repQ(e.tid)}')">Tool <b>${repTag(e)}</b> ${esc(repToolName(e.tid))} ›</div>`:''}
-    <div class="sub">${esc(e.text)}${e.keeper?' · store keeper <b>'+esc(e.keeper)+'</b>':''}</div></div>`;
+    <div class="sub">${esc(e.text)}${e.keeper?' · store keeper <b>'+esc(e.keeper)+'</b>':''}</div>${repWho(m)}</div>`;
 }
 function repTechRow(p,key,i){
   const rs=repReasons(p);
@@ -2320,26 +2341,37 @@ function repTechRow(p,key,i){
 }
 const repAnim=quiet=>quiet?'':' rp-slide';
 /* ---------- the subjects ---------- */
+/* v28: BACK everywhere in the report - a big back button at the top AND the bottom of every page,
+   and the phone's own back (Android back / swipe) goes one step back inside the report, not out of the app */
+let REP_LAST=null, REP_BACKFN=null, REP_VIEWFN=null, REP_CUR='', REP_POS={}, REP_ISBACK=false;
+/* going BACK shows the list where he left it (same scroll place, the subject he opened is lit up) - going forward starts at the top */
+function repEnter(pg,quiet){ if(quiet) return; if(REP_CUR) REP_POS[REP_CUR]=window.scrollY; REP_CUR=pg; }
+function repLand(pg,quiet,focusId){ if(quiet) return; const back=REP_ISBACK; REP_ISBACK=false; const el=focusId&&document.getElementById(focusId);
+  if(back&&REP_POS[pg]!=null) window.scrollTo(0,REP_POS[pg]); else if(back&&el) el.scrollIntoView({block:'center'}); else window.scrollTo(0,0);
+  if(back&&el){ el.classList.add('rp-flash'); setTimeout(()=>el.classList.remove('rp-flash'),1800); } }
+function repPush(back){ REP_BACKFN=back; REP_VIEWFN=curStoreView; try{ history.scrollRestoration='manual'; if(!(history.state&&history.state.rep)) history.pushState({rep:1},''); }catch(e){} }
+window.addEventListener('popstate',()=>{ if(REP_BACKFN&&curStoreView&&curStoreView===REP_VIEWFN){ const f=REP_BACKFN; REP_BACKFN=null; REP_ISBACK=true; f(); } });
+const repBack=(fn,label,cls)=>`<button class="rp-back${cls?' '+cls:''}" onclick="REP_ISBACK=true;${fn}">‹ ${label}</button>`;
+function repNav(key){ const S=REP_LAST&&REP_SUBJ.find(x=>x[0]===REP_LAST);
+  return `<div class="rp-nav">${S?repBack(`repSubject('${key}','${S[0]}')`,'Back to '+S[1])+repBack(`reportView('${key}')`,'Report main page','rp-home'):repBack(`reportView('${key}')`,'Back to report')}</div>`; }
+function repNavBack(key){ return REP_LAST?()=>repSubject(key,REP_LAST):()=>reportView(key); }
+/* v28: SHORT report for the manager - only what matters: late, damaged / missing, who did not follow the procedure */
 const REP_SUBJ=[
-  ['problems','Problem technicians','Who made mistakes this month, worst first',d=>d.problemTechs.length,'red'],
-  ['alerts','Cheat & mistake alerts','Every suspicious or wrong action, newest first',d=>d.alerts.length,'red'],
-  ['overdue','Overdue now','Tools still with a technician past '+LIMIT_TXT,d=>d.overdue.length,'red'],
-  ['due','Due soon (warning)','Out more than '+DUE_TXT+' - must come back before '+LIMIT_TXT,d=>d.dueSoon.length,'amber'],
-  ['late','Late returns','Came back after more than '+LIMIT_TXT,d=>d.late.length,'amber'],
-  ['cond','Return condition A / B / C / D','Every return this month: Good, Defect, Damaged or Missing - who, when, received by',d=>d.conds.length,''],
-  ['damage','Damaged & missing','Reported not good, with the reason and if it was replaced',d=>d.dmg.length,'red'],
-  ['rejects','Returns not accepted','The store keeper sent the tool back to the technician',d=>d.rejects.length,'amber'],
-  ['slowin','Handed in late to the store keeper','Marked returned, but the store keeper got it more than '+REP_RECEIPT_H+' h later',d=>d.slowIn.length,'amber'],
-  ['typed','ID typed, not scanned','Check the ID was really his',d=>d.typed.length,'amber'],
-  ['nophone','Came without phone','Tool given by the store keeper by ID',d=>d.noPhone.length,'amber'],
-  ['techs','All technicians','Full month profile of every technician',d=>d.techs.length,''],
+  ['problems','Problem technicians','Who broke the rules this month - worst first',d=>d.problemTechs.length,'red'],
+  ['overdue','Overdue now','Tool still with him after '+LIMIT_TXT,d=>d.overdue.length,'red'],
+  ['late','Late returns','Came back after '+LIMIT_TXT,d=>d.late.length,'amber'],
+  ['damage','Damaged & missing','B Defect · C Damaged · D Missing - who had it, replaced or not',d=>d.dmg.length,'red'],
+  ['proc','Did not follow the procedure','Said GOOD but it was not · ID typed · no phone',d=>d.proc.length,'amber'],
+  ['techs','All technicians','Every technician - his full month',d=>d.techs.length,''],
   ['tools','Tools','Most used, most damaged, most often late',d=>d.tools.length,''],
-  ['keepers','Store keepers','Who gave, took back and refused tools',d=>d.keeperRows.filter(r=>r.given+r.taken+r.rejected).length,''],
-  ['visits','Cabin visits','Every time a technician entered the cabin',d=>d.entries.length,''],
-  ['moves','All tool movements','Complete list - every tool taken this month',d=>d.takenM.length,'']
+  ['moves','All tool movements','Every tool taken - full details',d=>d.takenM.length,'']
 ];
+const REP_SUBJ_X=[['okback','Back OK','Came back on time and in good condition (A)',d=>d.returned.filter(m=>!repLate(m)&&(!m.cin||m.cin==='A')).length,'']];
+const REP_PROC=[['SAIDGOOD','Said GOOD, but the store keeper found a problem','He pressed "A Good" when he returned it - the store keeper checked and it was NOT good. Possible cheat.'],
+  ['TYPED','ID typed, not scanned','He typed his ID number instead of scanning his own QR. Anyone can type another man\'s ID - check it was really him.'],
+  ['NOPHONE','Came without phone','The store keeper gave the tool using his ID. Allowed, but he must bring his phone.']];
 function reportPick(){
-  curStoreView=reportPick;setTitle('Monthly report','Ready any day of the month');
+  curStoreView=reportPick;setTitle('Monthly report','Ready any day of the month'); repPush(()=>dash());
   const keys=last3Months();const cur=monthKey(new Date());
   $('view').innerHTML=`<button class="back" onclick="dash()">‹ Dashboard</button>
     <div class="alert info">The report shows everything that happened in the tool store in that month. Open this month to see it up to today.</div>
@@ -2352,15 +2384,19 @@ function reportPick(){
     <p class="muted center" style="margin-top:6px">The last three months are kept ready.</p>`;
 }
 function reportView(key,quiet){
-  curStoreView=()=>reportView(key,true);
+  curStoreView=()=>reportView(key,true); const from=REP_LAST; REP_LAST=null; repPush(()=>reportPick()); repEnter('main',quiet);
   const d=monthData(key);const now=new Date();
   setTitle(monthLabel(key),d.isNow?'Up to today':'Full month');
-  const tile=(n,l,c)=>`<div class="stat ${c||''}"><div class="n">${n}</div><div class="l">${l}</div></div>`;
-  $('view').innerHTML=`<div class="${repAnim(quiet).trim()}"><button class="back" onclick="reportPick()">‹ All months</button>
+  const tile=(n,l,c,go)=>`<div class="stat ${c||''} rp-tile" id="rt_${go}" onclick="repSubject('${key}','${go}')"><div class="n">${n}</div><div class="l">${l} ›</div></div>`;
+  const okBack=d.returned.filter(m=>!repLate(m)&&(!m.cin||m.cin==='A')).length;
+  const bad=d.overdue.length+d.late.length+d.dmg.length+d.proc.length;
+  $('view').innerHTML=`<div class="${repAnim(quiet).trim()}"><div class="rp-nav">${repBack('reportPick()','All months')}</div>
     <div class="idcard"><div class="nm">${monthLabel(key)}</div>
-      <div class="meta">Tool store report${d.isNow?' · up to '+now.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):' · full month'}</div></div>
-    <div class="stats">${tile(d.takenM.length,'Tools taken')}${tile(d.returned.length,'Returned','green')}${tile(d.overdue.length,'Overdue now',d.overdue.length?'red':'')}
-      ${tile(d.late.length,'Late returns',d.late.length?'red':'')}${tile(d.dmg.length,'Damaged / missing',d.dmg.length?'red':'')}${tile(d.alerts.length,'Alerts',d.alerts.length?'red':'')}</div>
+      <div class="meta">Tool store report · return limit ${LIMIT_TXT}${d.isNow?' · up to '+now.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):' · full month'}</div></div>
+    <div class="alert ${bad?(d.overdue.length||d.dmg.length?'red':'warn'):'green'}" id="repVerdict">${bad?`<b>${bad} problem${bad>1?'s':''} this month</b> · ${d.problemTechs.length} technician${d.problemTechs.length!==1?'s':''} involved. Tap a line below for the full details.`:'<b>All good this month.</b> Every tool came back on time and in good condition.'}</div>
+    <div class="stats rp-tiles">${tile(d.takenM.length,'Tools taken','','moves')}${tile(okBack,'Back OK','green','okback')}${tile(d.overdue.length,'Overdue now',d.overdue.length?'red':'','overdue')}
+      ${tile(d.late.length,'Late returns',d.late.length?'red':'','late')}${tile(d.dmg.length,'Damaged / missing',d.dmg.length?'red':'','damage')}${tile(d.proc.length,'Procedure broken',d.proc.length?'red':'','proc')}</div>
+    <p class="muted center" style="margin:-6px 0 12px;font-size:12px">Tap a box or a line to open its full details</p>
     <div class="card rp-subj" style="padding:4px 0">
       ${REP_SUBJ.map(([id,title,hint,cnt,col])=>{ const n=cnt(d);
         return `<button class="rp-row" id="rs_${id}" onclick="repSubject('${key}','${id}')">
@@ -2368,158 +2404,140 @@ function reportView(key,quiet){
           <span class="rp-n ${n&&col?col:''}">${n}</span><span class="rp-ar">›</span></button>`; }).join('')}
     </div>
     <button class="btn primary" onclick="downloadReport('${key}')">Download this month (Excel)</button>
-    <p class="muted center" style="margin-top:10px">One file with every list in this report.</p></div>`;
-  if(!quiet) window.scrollTo(0,0);
+    <p class="muted center" style="margin-top:10px">Same lists as above, in one file.</p><div class="rp-nav">${repBack('reportPick()','All months')}</div></div>`;
+  repLand('main',quiet,from?(REP_SUBJ.some(x=>x[0]===from)?'rs_'+from:'rt_'+from):null);
 }
 function repSubject(key,id,quiet){
-  curStoreView=()=>repSubject(key,id,true);
-  const d=monthData(key); const S=REP_SUBJ.find(s=>s[0]===id); if(!S){ reportView(key); return; }
+  const d=monthData(key); const S=REP_SUBJ.find(s=>s[0]===id)||REP_SUBJ_X.find(s=>s[0]===id); if(!S){ reportView(key); return; }
+  curStoreView=()=>repSubject(key,id,true); REP_LAST=id; repPush(()=>reportView(key)); repEnter('s:'+id,quiet);
   setTitle(S[1],monthLabel(key));
   const empty=msg=>`<div class="empty" style="padding:30px 10px">${msg}</div>`;
   let body='';
   if(id==='problems'){
-    body=d.problemTechs.length?d.problemTechs.map((p,i)=>repTechRow(p,key,i)).join(''):empty('No technician made a mistake this month');
-    body+=`<p class="muted" style="margin:12px 4px;line-height:1.6"><b>Points:</b> overdue 3 (+1 for every full day late, up to 10) · late return 2 (+1 for every full day late, up to 6) · missing 3 · said good but not accepted 3 · damaged 2 · return not accepted 2 · defect 1 · ID typed 1 a day · no phone 1 a day · handed in late 1</p>`;
+    body=d.problemTechs.length?d.problemTechs.map((p,i)=>repTechRow(p,key,i)).join(''):empty('No technician broke a rule this month');
+    body+=`<p class="muted" style="margin:12px 4px;line-height:1.6"><b>Points:</b> overdue 3 (+1 a day) · late 2 (+1 a day) · missing 3 · said GOOD but it was not 3 · damaged 2 · defect 1 · ID typed 1 a day · no phone 1 a day. More points = more problems.</p>`;
   }
-  else if(id==='alerts') body=d.alerts.length?d.alerts.map(e=>repEventRow(e,key,true)).join(''):empty('No alert this month');
-  else if(['overdue','late','rejects','typed','nophone','slowin','damage'].includes(id)){
-    const L={overdue:d.overdue,late:d.late,rejects:d.rejects,typed:d.typed,nophone:d.noPhone,slowin:d.slowIn,damage:d.dmg}[id];
-    body=L.length?L.map(e=>repEventRow(e,key,true)).join(''):empty('Nothing this month');
+  else if(id==='overdue'||id==='late'){
+    const L=id==='overdue'?d.overdue:d.late;
+    body=L.length?L.map(e=>repEventRow(e,key,true)).join(''):empty(id==='overdue'?'No tool is overdue':'No late return this month');
   }
-  else if(id==='cond'){
+  else if(id==='damage'){
     const cnt=g=>d.conds.filter(m=>m.cin===g).length;
-    body=`<div class="rp-cg">${['A','B','C','D'].map(g=>`<div>${gradeBadge(g)}<b>${cnt(g)}</b><small>${GRADE_MEAN[g]}</small></div>`).join('')}</div>`+
-      (d.conds.length?['D','C','B','A'].map(g=>{ const L=d.conds.filter(m=>m.cin===g); if(!L.length) return '';
-        return `<h3 style="margin:16px 2px 4px">${g} · ${GRADE_FULL[g]} (${L.length})</h3>`+L.map(m=>`<div class="rec"><div class="hd"><span class="rid rp-link" onclick="repTool('${key}','${repQ(m.tid)}')">${esc(m.tid)}${m.unit?'-'+esc(m.unit):''}</span><span class="rname">${esc(repToolName(m.tid))}</span>${gradeBadge(m.cin)}</div>
-          <div class="sub rp-link" onclick="repTech('${key}','${repQ(repKeyOf(m))}')"><b class="tn">${esc(m.tech||'')}</b> · ${esc(m.sec||'')}${m.techId?' · ID '+esc(m.techId):''} ›</div>
-          <div class="sub">Returned ${fmtTime(m.ret)} · ${m.status==='IN'?'received '+fmtTime(m.recvAt||m.ret)+(m.inBy?' by <b>'+esc(m.inBy)+'</b>':''):'<b style="color:var(--amber)">waiting for the store keeper</b>'}</div>
-          ${m.note?`<div class="sub"><b>Note:</b> ${esc(m.note)}</div>`:''}${m.cin==='D'&&m.missPcs?`<div class="sub" style="color:var(--red);font-weight:700">Not returned: ${esc(m.missPcs)}</div>`:''}</div>`).join(''); }).join(''):empty('No tool returned this month'));
+    body=`<p class="muted" style="margin:0 2px 6px">Every return this month, by condition:</p><div class="rp-cg">${['A','B','C','D'].map(g=>`<div>${gradeBadge(g)}<b>${cnt(g)}</b><small>${GRADE_MEAN[g]}</small></div>`).join('')}</div>`+
+      (d.dmg.length?['MISSING','DAMAGE','DEFECT'].map(t=>{ const L=d.dmg.filter(e=>e.type===t); if(!L.length) return '';
+        return `<h3 style="margin:16px 2px 4px">${REP_WORD[t]} (${L.length})</h3>`+L.map(e=>repEventRow(e,key,true)).join(''); }).join(''):empty('No damaged or missing tool this month'));
   }
-  else if(id==='due') body=d.dueSoon.length?d.dueSoon.slice().sort((a,b)=>String(a.out).localeCompare(String(b.out))).map(m=>`<div class="rec" style="border-left:4px solid var(--amber);padding-left:10px">
-      <div class="hd"><span class="rid rp-link" onclick="repTool('${key}','${repQ(m.tid)}')">${esc(m.tid)}${m.unit?'-'+esc(m.unit):''}</span><span class="rname">${esc(repToolName(m.tid))}</span>${dueBadge(m)}</div>
-      <div class="sub rp-link" onclick="repTech('${key}','${repQ(repKeyOf(m))}')"><b class="tn">${esc(m.tech||'')}</b> · ${esc(m.sec||'')}${m.techId?' · ID '+esc(m.techId):''} ›</div>
-      <div class="sub">Taken ${fmtTime(m.out)}${m.outBy?' by '+esc(m.outBy):''} · out ${ago(m.out)} · <b>${leftTxt(m)}</b></div></div>`).join(''):empty('No tool is close to the limit');
+  else if(id==='proc'){
+    body=d.proc.length?REP_PROC.map(([t,title,why])=>{ const L=d.proc.filter(e=>e.type===t); if(!L.length) return '';
+      return `<h3 style="margin:16px 2px 2px">${title} (${L.length})</h3><p class="muted" style="margin:0 2px 6px;line-height:1.45">${why}</p>`+L.map(e=>repEventRow(e,key,true)).join(''); }).join(''):empty('Everyone followed the procedure this month');
+  }
   else if(id==='techs') body=d.techs.length?d.techs.slice().sort((a,b)=>a.tech.localeCompare(b.tech)).map(p=>repTechRow(p,key,null)).join(''):empty('No technician activity');
   else if(id==='tools') body=d.tools.length?d.tools.map(t=>`<button class="rp-row" onclick="repTool('${key}','${repQ(t.tid)}')">
-      <span class="rp-main"><b>${esc(t.tid)} · ${esc(repToolName(t.tid))}</b><small>taken ${t.taken}× by ${t.men.size} m${t.men.size!==1?'en':'an'}${t.late?' · late '+t.late:''}${t.overdue?' · overdue '+t.overdue:''}${t.damage?' · damaged/missing '+t.damage:''}${t.rejected?' · not accepted '+t.rejected:''}</small></span>
-      <span class="badge ${t.damage||t.overdue?'out':t.late||t.rejected?'pend':'instore'}">${t.taken}×</span><span class="rp-ar">›</span></button>`).join(''):empty('No tool taken');
-  else if(id==='keepers') body=d.keeperRows.map(r=>`<div class="rec"><div class="hd"><span class="rname">${esc(r.short)}</span><span class="badge ${r.given+r.taken?'instore':'none'}">${r.given+r.taken} action${r.given+r.taken===1?'':'s'}</span></div>
-      <div class="sub">${esc(r.title)} · ID ${esc(r.id)} · gave ${r.given} · took back ${r.taken} · refused ${r.rejected}${r.noPhone?' · no-phone '+r.noPhone:''}</div></div>`).join('');
-  else if(id==='visits') body=d.entries.length?d.entries.slice().sort((a,b)=>String(b.at).localeCompare(String(a.at))).map(e=>`<div class="rec rp-link" onclick="repTech('${key}','${repQ(repKeyOf(e))}')"><div class="hd"><span class="rname">${esc(e.tech)}</span><span class="rp-when">${fmtTime(e.at)}</span></div>
-      <div class="sub">${esc(e.sec||'')} · ID ${esc(e.techId||'')} · ${e.noPhone?'no phone - entered by store keeper':e.idBy==='typed'?'<b style="color:var(--amber)">ID typed</b>':'scanned the cabin QR'}</div></div>`).join(''):empty('No cabin visit');
+      <span class="rp-main"><b>${esc(t.tid)} · ${esc(repToolName(t.tid))}</b><small>taken ${t.taken}× by ${t.men.size} m${t.men.size!==1?'en':'an'}${t.late?' · late '+t.late:''}${t.overdue?' · overdue '+t.overdue:''}${t.damage?' · damaged/missing '+t.damage:''}</small></span>
+      <span class="badge ${t.damage||t.overdue?'out':t.late?'pend':'instore'}">${t.taken}×</span><span class="rp-ar">›</span></button>`).join(''):empty('No tool taken');
+  else if(id==='okback'){ const L=d.returned.filter(m=>!repLate(m)&&(!m.cin||m.cin==='A')).sort((a,b)=>String(b.ret).localeCompare(String(a.ret)));
+    body=L.length?L.map(m=>repMoveRow(m,key,true)).join(''):empty('No tool came back yet this month'); }
   else if(id==='moves') body=d.takenM.length?d.takenM.slice().sort((a,b)=>String(b.out).localeCompare(String(a.out))).map(m=>repMoveRow(m,key,true)).join(''):empty('No tool taken');
-  $('view').innerHTML=`<div class="${repAnim(quiet).trim()}"><button class="back" onclick="reportView('${key}')">‹ ${monthLabel(key)} report</button>
-    <div class="card" style="padding:4px 14px"><h3 style="margin:14px 2px 2px">${S[1]} (${S[3](d)})</h3><p class="muted" style="margin:0 2px 8px">${S[2]}</p>${body}</div></div>`;
-  if(!quiet) window.scrollTo(0,0);
+  const nav=`<div class="rp-nav">${repBack(`reportView('${key}')`,'Back to report')}</div>`;
+  $('view').innerHTML=`<div class="${repAnim(quiet).trim()}">${nav}
+    <div class="card" style="padding:4px 14px"><h3 style="margin:14px 2px 2px">${S[1]} (${S[3](d)})</h3><p class="muted" style="margin:0 2px 8px">${S[2]}</p>${body}</div>${nav}</div>`;
+  repLand('s:'+id,quiet);
 }
 function repMoveRow(m,key,showTech){
-  const L=repLate(m), st=m.status==='IN'?'Received':m.status==='PENDING'?'Returned - waiting':m.status==='OUT'?(L?'OVERDUE':'With him'):'Requested';
-  const rj=repRejList(m);
+  const L=repLate(m), st=m.status==='IN'?'Back in store':m.status==='PENDING'?'Returned - waiting':m.status==='OUT'?(L?'OVERDUE':'With him'):'Requested';
   return `<div class="rec"><div class="hd"><span class="rid rp-link" onclick="repTool('${key}','${repQ(m.tid)}')">${esc(m.tid)}${m.unit?'-'+esc(m.unit):''}</span><span class="rname">${esc(repToolName(m.tid))}</span>
       <span class="badge ${m.status==='IN'?(L?'pend':'instore'):m.status==='OUT'?(L?'out':'blue'):'pend'}">${st}</span></div>
-    ${showTech?`<div class="sub rp-link" onclick="repTech('${key}','${repQ(repKeyOf(m))}')"><b class="tn">${esc(m.tech||'')}</b> · ${esc(m.sec||'')} ›</div>`:''}
-    <div class="sub">Out ${fmtTime(m.out)}${m.outBy?' by '+esc(m.outBy):''}${m.ret?' · returned '+fmtTime(m.ret):''}${m.recvAt&&m.status==='IN'?' · received '+fmtTime(m.recvAt)+(m.inBy?' by '+esc(m.inBy):''):''}</div>
-    ${L?`<div class="sub" style="color:var(--red);font-weight:700">Held ${repH1(L.held)} - ${repH1(L.over)} over the ${LIMIT_TXT} limit</div>`:''}
-    ${m.cin?`<div class="sub">Condition ${gradeBadge(m.cin)}${m.note?' '+esc(m.note):''}</div>`:''}
-    ${rj.length?`<div class="sub" style="color:var(--amber);font-weight:700">Return not accepted ${rj.length}×</div>`:''}
-    ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}</div>`;
+    ${showTech?`<div class="sub rp-link" onclick="repTech('${key}','${repQ(repKeyOf(m))}')"><b class="tn">${esc(m.tech||'')}</b> · ${esc(m.sec||'')}${m.techId?' · ID '+esc(m.techId):''} ›</div>`:''}
+    ${L?`<div class="sub" style="color:var(--red);font-weight:700">${repH1(L.over)} over the ${LIMIT_TXT} limit</div>`:''}
+    ${repWho(m)}
+    ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}${m.cin==='D'&&m.missPcs?`<div class="sub" style="color:var(--red);font-weight:700">Not returned: ${esc(m.missPcs)}</div>`:''}</div>`;
 }
 /* ---------- one technician, the whole month ---------- */
-function repTech(key,tk,quiet){
+/* his boxes open the matching list on the same page */
+const REP_TF={taken:['Tools taken',null],ontime:['Back on time',null],late:['Late returns',['LATE']],overdue:['Overdue now',['OVERDUE']],
+  dmg:['Damaged / missing',['DAMAGE','DEFECT','MISSING']],proc:['Procedure broken',['SAIDGOOD','TYPED','NOPHONE']]};
+function repTechF(key,tk,f){ repTech(key,tk,true,f); const el=document.getElementById(REP_TF[f]&&REP_TF[f][1]?'rpTechEv':'rpTechMv'); if(el) el.scrollIntoView({block:'start',behavior:'smooth'}); }
+function repTech(key,tk,quiet,f){
   try{ tk=decodeURIComponent(tk); }catch(e){}
-  curStoreView=()=>repTech(key,repQ(tk),true);
+  curStoreView=()=>repTech(key,repQ(tk),true,f); repPush(repNavBack(key)); repEnter('t:'+tk,quiet);
   const d=monthData(key); const p=d.techs.find(x=>x.key===tk);
-  const cell=(n,l,bad)=>`<div class="stat ${bad&&n?'red':''}"><div class="n">${n}</div><div class="l">${l}</div></div>`;
-  if(!p){ $('view').innerHTML=`<button class="back" onclick="reportView('${key}')">‹ Report</button><div class="empty">No activity for this technician in ${monthLabel(key)}</div>`; return; }
+  const cell=(n,l,bad,k)=>`<div class="stat ${bad&&n?'red':''} rp-tile${f===k?' rp-on':''}" onclick="repTechF('${key}','${repQ(tk)}','${f===k?'':k}')"><div class="n">${n}</div><div class="l">${l} ›</div></div>`;
+  if(!p){ $('view').innerHTML=`${repNav(key)}<div class="empty">No activity for this technician in ${monthLabel(key)}</div>`; return; }
   setTitle(p.tech,monthLabel(key));
-  const ev=d.E.filter(e=>repKeyOf(e)===tk);
-  const mv=d.moves.filter(m=>repKeyOf(m)===tk).sort((a,b)=>String(b.out||b.req).localeCompare(String(a.out||a.req)));
+  const F=f&&REP_TF[f];
+  const ev=d.E.filter(e=>repKeyOf(e)===tk&&e.pts&&(!F||!F[1]||F[1].includes(e.type)));
+  const mv=d.moves.filter(m=>repKeyOf(m)===tk&&(f!=='taken'||(m.out&&repInMonth(m.out,key)))&&(f!=='ontime'||(m.ret&&repInMonth(m.ret,key)&&!repLate(m)))).sort((a,b)=>String(b.out||b.req).localeCompare(String(a.out||a.req)));
+  const showing=F?`<div class="alert info" style="margin:0 0 10px">Showing: <b>${F[0]}</b> · <span class="rp-link" style="text-decoration:underline" onclick="repTechF('${key}','${repQ(tk)}','')">show everything</span></div>`:'';
   const rs=repReasons(p);
   const verdict=p.pts?`<div class="alert ${p.pts>=6?'red':'warn'}"><b>${p.pts} mistake point${p.pts!==1?'s':''} this month.</b><br>${esc(rs.join(' · '))}</div>`
                      :`<div class="alert green"><b>No problem this month.</b> Every tool came back on time and in good condition.</div>`;
-  $('view').innerHTML=`<div class="${repAnim(quiet).trim()}"><button class="back" onclick="repSubject('${key}','techs')">‹ All technicians</button>
+  $('view').innerHTML=`<div class="${repAnim(quiet).trim()}">${repNav(key)}
     <div class="idcard"><div class="nm">${esc(p.tech)}</div><div class="meta">${esc(p.sec)} — ${SEC_FULL[p.sec]||''}${p.techId?' · ID '+esc(p.techId):''}</div><div class="badge">${monthLabel(key)}</div></div>
     ${verdict}
-    <div class="stats">${cell(p.taken,'Tools taken')}${cell(p.onTime,'Back on time')}${cell(p.late,'Late returns',1)}
-      ${cell(p.overdue,'Overdue now',1)}${cell(p.damaged+p.defect+p.missing,'Damaged / missing',1)}${cell(p.rejected,'Not accepted',1)}
-      ${cell(p.typed,'ID typed',1)}${cell(p.noPhone,'No phone',1)}${cell(p.visits,'Cabin visits')}</div>
-    ${p.late||p.overdue?`<div class="card">${p.late?`<div class="kv"><span class="k">Late returns - total time late</span><span class="v" style="color:var(--red)">${repH1(p.lateH)}</span></div>`:''}${p.overdue?`<div class="kv"><span class="k">Overdue tools - time late so far</span><span class="v" style="color:var(--red)">${repH1(p.odH)}</span></div>`:''}<div class="kv"><span class="k">Worst single tool</span><span class="v" style="color:var(--red)">${repH1(p.worstLate)} over the ${LIMIT_TXT} limit</span></div></div>`:''}
-    <div class="card" style="padding:4px 14px"><h3 style="margin:14px 2px 6px">Mistakes &amp; alerts (${ev.filter(e=>e.pts).length})</h3>${ev.filter(e=>e.pts).map(e=>repEventRow(e,key,false)).join('')||'<div class="empty" style="padding:22px">None</div>'}</div>
-    <div class="card" style="padding:4px 14px"><h3 style="margin:14px 2px 6px">Every tool he had this month (${mv.length})</h3>${mv.map(m=>repMoveRow(m,key,false)).join('')||'<div class="empty" style="padding:22px">None</div>'}</div></div>`;
-  if(!quiet) window.scrollTo(0,0);
+    <div class="stats">${cell(p.taken,'Tools taken',0,'taken')}${cell(p.onTime,'Back on time',0,'ontime')}${cell(p.late,'Late returns',1,'late')}
+      ${cell(p.overdue,'Overdue now',1,'overdue')}${cell(p.damaged+p.defect+p.missing,'Damaged / missing',1,'dmg')}${cell(p.saidGood+p.typed+p.noPhone,'Procedure broken',1,'proc')}</div>
+    ${showing}
+    ${!F||F[1]?`<div class="card" id="rpTechEv" style="padding:4px 14px"><h3 style="margin:14px 2px 6px">${F?F[0]:'His mistakes'} (${ev.length})</h3>${ev.map(e=>repEventRow(e,key,false)).join('')||'<div class="empty" style="padding:22px">None</div>'}</div>`:''}
+    ${!F||!F[1]?`<div class="card" id="rpTechMv" style="padding:4px 14px"><h3 style="margin:14px 2px 6px">${F?F[0]:'Every tool he had this month'} (${mv.length})</h3>${mv.map(m=>repMoveRow(m,key,false)).join('')||'<div class="empty" style="padding:22px">None</div>'}</div>`:''}${repNav(key)}</div>`;
+  repLand('t:'+tk,quiet);
 }
 /* ---------- one tool, the whole month ---------- */
 function repTool(key,tid,quiet){
   try{ tid=decodeURIComponent(tid); }catch(e){}
-  curStoreView=()=>repTool(key,repQ(tid),true);
+  curStoreView=()=>repTool(key,repQ(tid),true); repPush(repNavBack(key)); repEnter('o:'+tid,quiet);
   const d=monthData(key); const t=toolById(tid)||[tid,'',''];
   setTitle('Tool '+tid,monthLabel(key));
   const mv=d.moves.filter(m=>m.tid===tid).sort((a,b)=>String(b.out||b.req).localeCompare(String(a.out||a.req)));
   const ev=d.E.filter(e=>e.tid===tid&&e.pts);
-  $('view').innerHTML=`<div class="${repAnim(quiet).trim()}"><button class="back" onclick="repSubject('${key}','tools')">‹ All tools</button>
+  $('view').innerHTML=`<div class="${repAnim(quiet).trim()}">${repNav(key)}
     <div class="card detail"><div class="tid">${esc(tid)}</div><div class="tname">${esc(t[T_NAME]||'')}</div><div class="meta">${meta(t)}</div></div>
     <div class="card" style="padding:4px 14px"><h3 style="margin:14px 2px 6px">Problems with this tool (${ev.length})</h3>${ev.map(e=>repEventRow(e,key,true)).join('')||'<div class="empty" style="padding:22px">None this month</div>'}</div>
-    <div class="card" style="padding:4px 14px"><h3 style="margin:14px 2px 6px">Who had it this month (${mv.length})</h3>${mv.map(m=>repMoveRow(m,key,true)).join('')||'<div class="empty" style="padding:22px">Not taken this month</div>'}</div></div>`;
-  if(!quiet) window.scrollTo(0,0);
+    <div class="card" style="padding:4px 14px"><h3 style="margin:14px 2px 6px">Who had it this month (${mv.length})</h3>${mv.map(m=>repMoveRow(m,key,true)).join('')||'<div class="empty" style="padding:22px">Not taken this month</div>'}</div>${repNav(key)}</div>`;
+  repLand('o:'+tid,quiet);
 }
 function csvCell(v){v=(v==null?'':String(v));if(/^[=+\-@\t\r]/.test(v))v="'"+v;   /* never let a note be read as a formula */
   return '"'+v.replace(/"/g,'""')+'"';}
 function downloadReport(key){
   const d=monthData(key);const rows=[];
   const push=(...a)=>rows.push(a.map(csvCell).join(','));
+  const how=m=>!m?'':m.noPhone||m.idBy==='nophone'?'No phone':m.idBy==='typed'?'ID typed':m.idBy==='scan'?'Own QR sticker':m.idBy==='link'?'Own phone link':'';
+  const mv=e=>LOG.find(x=>x.id===e.mid)||{};
+  const evHead=['Date and time','What happened','Technician','ID','Section','Tool','Tool name','Details','Given by','Given at','Returned','Taken back by','Taken back at','Condition','How he came','Points'];
+  const evRow=e=>{ const m=mv(e); const tool=m.kind==='ENTRY';
+    push(fmtTime(e.at),REP_WORD[e.type]||e.type,e.tech,e.techId,e.sec,(e.tid||'')+(e.unit?'-'+e.unit:''),repToolName(e.tid),e.text,tool?'':m.outBy||'',tool||!m.out?'':fmtTime(m.out),tool?'':(m.ret?fmtTime(m.ret):'not yet'),
+      tool?'':(m.status==='IN'?m.inBy||'':''),tool?'':(m.status==='IN'?fmtTime(m.recvAt||m.ret):(m.ret?'waiting':'')),m.cin?m.cin+' - '+GRADE_FULL[m.cin]:'',how(m),e.pts); };
   push('TOOL STORE - MONTHLY REPORT');
-  push('Month',monthLabel(key)); push('Generated',new Date().toLocaleString('en-GB')); push('');
+  push('Month',monthLabel(key)); push('Generated',new Date().toLocaleString('en-GB')); push('Return limit',LIMIT_TXT); push('');
   push('SUMMARY');
-  push('Return limit',LIMIT_TXT+' (warning after '+DUE_TXT+')');
-  push('Tools taken',d.takenM.length); push('Returned',d.returned.length); push('Overdue now',d.overdue.length); push('Due soon (out more than '+DUE_TXT+')',d.dueSoon.length); push('Late returns',d.late.length);
-  push('Damaged / defect / missing',d.dmg.length); push('Returns not accepted',d.rejects.length); push('Handed in late to store keeper',d.slowIn.length);
-  push('ID typed (not scanned)',d.typed.length); push('Came without phone',d.noPhone.length); push('Cabin visits',d.entries.length); push('Alerts in total',d.alerts.length); push('');
+  push('Tools taken',d.takenM.length); push('Back OK (on time and good)',d.returned.filter(m=>!repLate(m)&&(!m.cin||m.cin==='A')).length);
+  push('Overdue now',d.overdue.length); push('Late returns',d.late.length); push('Damaged / defect / missing',d.dmg.length); push('Procedure broken',d.proc.length);
+  push('Returned A Good',d.conds.filter(m=>m.cin==='A').length); push('Returned B Defect',d.conds.filter(m=>m.cin==='B').length);
+  push('Returned C Damaged',d.conds.filter(m=>m.cin==='C').length); push('Returned D Missing',d.conds.filter(m=>m.cin==='D').length); push('');
   push('PROBLEM TECHNICIANS (worst first)');
-  push('Rank','Technician','ID','Section','Mistake points','Tools taken','Back on time','Late returns','Total hours late','Worst hours late','Overdue now','Damaged','Defect','Missing','Not accepted','Said good - not accepted','ID typed','No phone','Handed in late','Cabin visits','Reasons');
-  d.techs.filter(p=>p.pts>0).forEach((p,i)=>push(i+1,p.tech,p.techId,p.sec,p.pts,p.taken,p.onTime,p.late,repH1(p.lateH),p.worstLate?repH1(p.worstLate):'',p.overdue,p.damaged,p.defect,p.missing,p.rejected,p.saidGood,p.typed,p.noPhone,p.slowIn,p.visits,repReasons(p).join(' / ')));
+  push('Rank','Technician','ID','Section','Mistake points','Tools taken','Back on time','Overdue now','Late returns','Total time late','Damaged','Defect','Missing','Said GOOD but not','ID typed','No phone','Reasons');
+  d.problemTechs.forEach((p,i)=>push(i+1,p.tech,p.techId,p.sec,p.pts,p.taken,p.onTime,p.overdue,p.late,p.lateH?repH1(p.lateH):'',p.damaged,p.defect,p.missing,p.saidGood,p.typed,p.noPhone,repReasons(p).join(' / ')));
   push('');
-  push('ALL ALERTS (newest first)');
-  push('Date and time','What happened','Points','Technician','ID','Section','Tool','Piece','Tool name','Details','Store keeper');
-  d.alerts.forEach(e=>push(fmtTime(e.at),REP_WORD[e.type]||e.type,e.pts,e.tech,e.techId,e.sec,e.tid,e.unit,repToolName(e.tid),e.text,e.keeper||''));
+  push('OVERDUE NOW'); push(...evHead); d.overdue.forEach(evRow); push('');
+  push('LATE RETURNS'); push(...evHead); d.late.forEach(evRow); push('');
+  push('DAMAGED & MISSING'); push(...evHead.concat(['Replaced with new?','Replaced by','Replaced when']));
+  d.dmg.forEach(e=>{ evRow(e); const m=mv(e); rows[rows.length-1]+=','+[m.dmgFixed?'YES':'NO',m.dmgFixedBy||'',m.dmgFixed?fmtTime(m.dmgFixedAt):''].map(csvCell).join(','); });
   push('');
-  push('RETURN CONDITION (the 4 choices at every return)');
-  push('Grade','Meaning','Returns this month');
-  ['A','B','C','D'].forEach(g=>push(g+' - '+GRADE_FULL[g],GRADE_MEAN[g],d.conds.filter(m=>m.cin===g).length));
-  push('Tool','Piece','Tool name','Condition','Technician','ID','Section','Returned','Received','Received by','Note');
-  d.conds.forEach(m=>push(m.tid,m.unit||'',repToolName(m.tid),m.cin+' - '+GRADE_FULL[m.cin],m.tech,m.techId||'',m.sec,fmtTime(m.ret),m.status==='IN'?fmtTime(m.recvAt||m.ret):'waiting',m.inBy||'',m.note||''));
-  push('');
-  push('DUE SOON (warning - out more than '+DUE_TXT+')');
-  push('Tool','Piece','Tool name','Technician','ID','Section','Taken','Out for','Time left');
-  d.dueSoon.forEach(m=>push(m.tid,m.unit||'',repToolName(m.tid),m.tech,m.techId||'',m.sec,fmtTime(m.out),ago(m.out),leftTxt(m)));
-  push('');
+  push('DID NOT FOLLOW THE PROCEDURE'); push(...evHead); REP_PROC.forEach(([t])=>d.proc.filter(e=>e.type===t).forEach(evRow)); push('');
   push('ALL TECHNICIANS');
-  push('Technician','ID','Section','Tools taken','Returned','Back on time','Still out','Late returns','Overdue now','Damaged/defect/missing','Not accepted','ID typed','No phone','Cabin visits','Mistake points');
-  d.techs.slice().sort((a,b)=>a.tech.localeCompare(b.tech)).forEach(p=>push(p.tech,p.techId,p.sec,p.taken,p.returned,p.onTime,p.stillOut,p.late,p.overdue,p.damaged+p.defect+p.missing,p.rejected,p.typed,p.noPhone,p.visits,p.pts));
-  push('');
-  push('DAMAGED & MISSING');
-  push('Tool','Piece','Tool name','Grade','What happened','Technician','ID','Section','Reported','Details','Replaced?','Replaced by','Replaced when');
-  d.dmg.forEach(e=>{ const m=LOG.find(x=>x.id===e.mid)||{};
-    push(e.tid,e.unit||'',repToolName(e.tid),e.type==='MISSING'?'D':e.type==='DAMAGE'?'C':'B',REP_WORD[e.type]||e.type,e.tech,e.techId,e.sec,fmtTime(e.at),e.text,m.dmgFixed?'YES':'NO',m.dmgFixedBy||'',m.dmgFixed?fmtTime(m.dmgFixedAt):''); });
+  push('Technician','ID','Section','Tools taken','Returned','Back on time','Still out','Overdue now','Late returns','Damaged/defect/missing','Procedure broken','Mistake points');
+  d.techs.slice().sort((a,b)=>a.tech.localeCompare(b.tech)).forEach(p=>push(p.tech,p.techId,p.sec,p.taken,p.returned,p.onTime,p.stillOut,p.overdue,p.late,p.damaged+p.defect+p.missing,p.saidGood+p.typed+p.noPhone,p.pts));
   push('');
   push('TOOLS');
-  push('Tool','Tool name','Times taken','Different men','Late','Overdue','Damaged/missing','Not accepted');
-  d.tools.forEach(t=>push(t.tid,repToolName(t.tid),t.taken,t.men.size,t.late,t.overdue,t.damage,t.rejected));
-  push('');
-  push('STORE KEEPERS');
-  push('Emp No','Store keeper','Title','Gave','Took back','Refused returns','No-phone issues');
-  d.keeperRows.forEach(r=>push(r.id,r.name,r.title,r.given,r.taken,r.rejected,r.noPhone));
-  push('');
-  push('EVERY CABIN ENTRY');
-  push('Date and time','Technician','ID','Section','How he was identified','Entered by store keeper');
-  d.entries.slice().sort((a,b)=>String(a.at).localeCompare(String(b.at))).forEach(e=>
-    push(fmtTime(e.at),e.tech,e.techId||'',e.sec,e.noPhone?'No phone':(e.idBy==='typed'?'ID typed':e.idBy==='scan'?'QR sticker':'Own phone link'),e.keeper||''));
+  push('Tool','Tool name','Times taken','Different men','Late','Overdue','Damaged/missing');
+  d.tools.forEach(t=>push(t.tid,repToolName(t.tid),t.taken,t.men.size,t.late,t.overdue,t.damage));
   push('');
   push('ALL TOOL MOVEMENTS');
-  push('Tool','Piece','Tool name','Technician','ID','Section','Requested','Out','Given by','Returned','Received','Taken back by','Hours held','Hours late','Condition','Note','Not accepted (times)','Pieces','Pieces not returned','No phone','ID typed','Status');
+  push('Tool','Piece','Tool name','Technician','ID','Section','How he came','Requested','Given by','Given at','Returned','Taken back by','Taken back at','Time held','Time late','Condition','Note','Pieces','Pieces not returned','Status');
   d.moves.slice().sort((a,b)=>String(a.out||a.req).localeCompare(String(b.out||b.req))).forEach(m=>{ const L=repLate(m);
     const held=m.out?repHrs((m.ret?repT(m.ret):Date.now())-repT(m.out)):0;
-    push(m.tid,m.unit||'',repToolName(m.tid),m.tech,m.techId||'',m.sec,fmtTime(m.req),fmtTime(m.out),m.outBy||'',m.ret?fmtTime(m.ret):'',m.status==='IN'?fmtTime(m.recvAt||m.ret):'',m.inBy||'',
-      m.out?repH1(held):'',L?repH1(L.over):'',m.cin?m.cin+' - '+GRADE_FULL[m.cin]:'',m.note||'',repRejList(m).length||'',m.items||'',m.missPcs||'',m.noPhone?'YES':'',m.idBy==='typed'?'YES':'',m.status); });
+    push(m.tid,m.unit||'',repToolName(m.tid),m.tech,m.techId||'',m.sec,how(m),fmtTime(m.req),m.outBy||'',m.out?fmtTime(m.out):'',m.ret?fmtTime(m.ret):'not yet',
+      m.status==='IN'?m.inBy||'':'',m.status==='IN'?fmtTime(m.recvAt||m.ret):(m.ret?'waiting':''),m.out?repH1(held):'',L?repH1(L.over):'',m.cin?m.cin+' - '+GRADE_FULL[m.cin]:'',m.note||'',m.items||'',m.missPcs||'',
+      m.status==='IN'?'Back in store':m.status==='PENDING'?'Returned - waiting':m.status==='OUT'?(L?'OVERDUE':'With him'):m.status); });
   const csv='﻿'+rows.join('\r\n');
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   const a=document.createElement('a');
@@ -2529,7 +2547,6 @@ function downloadReport(key){
   setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);
   toast('Report downloaded');
 }
-
 /* ================= HIDDEN RESET ================= */
 let secretCount=0,secretTimer=null;
 function secretTap(){
