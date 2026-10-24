@@ -2502,7 +2502,7 @@ let REP_LAST=null, REP_BACKFN=null, REP_VIEWFN=null, REP_CUR='', REP_POS={}, REP
 /* going BACK shows the list where he left it (same scroll place, the subject he opened is lit up) - going forward starts at the top */
 function repEnter(pg,quiet){ if(quiet) return; if(REP_CUR) REP_POS[REP_CUR]=window.scrollY; REP_CUR=pg; }
 function repLand(pg,quiet,focusId){ if(quiet) return; const back=REP_ISBACK; REP_ISBACK=false; const el=focusId&&document.getElementById(focusId);
-  if(back&&REP_POS[pg]!=null) window.scrollTo(0,REP_POS[pg]); else if(back&&el) el.scrollIntoView({block:'center'}); else window.scrollTo(0,0);
+  if(back&&REP_POS[pg]!=null) window.scrollTo(0,REP_POS[pg]); else if(back&&el) el.scrollIntoView({block:'center'}); else repToView();
   if(back&&el){ el.classList.add('rp-flash'); setTimeout(()=>el.classList.remove('rp-flash'),1800); } }
 function repPush(back){ REP_BACKFN=back; REP_VIEWFN=curStoreView; try{ history.scrollRestoration='manual'; if(!(history.state&&history.state.rep)) history.pushState({rep:1},''); }catch(e){} }
 window.addEventListener('popstate',()=>{ if(REP_BACKFN&&curStoreView&&curStoreView===REP_VIEWFN){ const f=REP_BACKFN; REP_BACKFN=null; REP_ISBACK=true; f(); } });
@@ -2613,7 +2613,12 @@ function repMoveRow(m,key,showTech){
 /* his boxes open the matching list on the same page */
 const REP_TF={taken:['Tools taken',null],ontime:['Back on time',null],late:['Late returns',['LATE']],overdue:['Overdue now',['OVERDUE']],
   dmg:['Damaged / missing',['DAMAGE','DEFECT','MISSING']],proc:['Procedure broken',['SAIDGOOD','NOPHONE']]};
-function repTechF(key,tk,f){ repTech(key,tk,true,f); const el=document.getElementById(REP_TF[f]&&REP_TF[f][1]?'rpTechEv':'rpTechMv'); if(el) el.scrollIntoView({block:'start',behavior:'smooth'}); }
+function repTechF(key,tk,f){ repTech(key,tk,true,f); const el=document.getElementById(REP_TF[f]&&REP_TF[f][1]?'rpTechEv':'rpTechMv'); repToEl(el,true); }
+/* v32: put a page / list right under the sticky header (skip the big banner) */
+function repToEl(el,smooth){ if(!el) return; const h=document.querySelector('.top'); const y=el.getBoundingClientRect().top+window.scrollY-(h?h.offsetHeight:0)-10;
+  const v=document.getElementById('view'), w=v&&v.firstElementChild; if(w){ const vb=v.getBoundingClientRect().bottom+window.scrollY, need=Math.max(0,y)+window.innerHeight; if(vb<need) w.style.paddingBottom=Math.ceil((parseFloat(w.style.paddingBottom)||0)+need-vb)+'px'; }
+  window.scrollTo({top:Math.max(0,y),behavior:smooth?'smooth':'auto'}); }
+function repToView(){ const v=document.getElementById('view'); if(v) repToEl(v,false); else window.scrollTo(0,0); }
 function repTech(key,tk,quiet,f){
   try{ tk=decodeURIComponent(tk); }catch(e){}
   curStoreView=()=>repTech(key,repQ(tk),true,f); repPush(repNavBack(key)); repEnter('t:'+tk,quiet);
@@ -3650,7 +3655,7 @@ async function rej(id){ if(!requireKeeper())return;
    - only at a SAFE moment: first screen, technician choice / blocked / cabin-scan screen, store keeper PIN
    screen or dashboard, or while the page is in the background. Never in the middle of taking or returning
    tools, never while typing. A store keeper must type his PIN again after an update. */
-const APP_BUILD=3110;      /* bigger number = newer upload */
+const APP_BUILD=3210;      /* bigger number = newer upload */
 let AU_NEW=0, AU_BUSY=false;
 function auSafe(){
   const a=document.activeElement; if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
