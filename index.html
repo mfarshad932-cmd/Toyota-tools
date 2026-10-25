@@ -372,7 +372,8 @@ button.btn[disabled]{opacity:.42;pointer-events:none}
 .badge.gD{background:#7A1E16;color:#fff;border:1px solid #7A1E16}
 .rp-cg{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:6px 0 10px}
 .rp-cg div{border:1px solid var(--line);border-radius:12px;padding:12px}
-.rp-cg b{font-family:var(--mono);font-size:24px;display:block}.rp-cg small{display:block;font-size:12px;color:#2A323D;margin-top:4px;line-height:1.35}
+.rp-cg b{font-family:var(--mono);font-size:24px;display:block}.rp-cg .rp-cgo{cursor:pointer}.rp-cg .rp-cgo:active{background:#F1F3F6}.rp-cgar{font-size:18px;color:#8A93A0;font-family:inherit}
+.rp-cg small{display:block;font-size:12px;color:#2A323D;margin-top:4px;line-height:1.35}
 /* v25: monthly report */
 .rp-row{display:flex;align-items:center;gap:10px;width:100%;padding:13px 14px;border:0;border-bottom:1px solid var(--hair);background:none;text-align:left;font:inherit;color:var(--ink);cursor:pointer}
 .rp-row:last-child{border-bottom:0}.rp-row:active{background:#F1F3F6}
@@ -2580,9 +2581,9 @@ function repSubject(key,id,quiet){
   }
   else if(id==='damage'){
     const cnt=g=>d.conds.filter(m=>m.cin===g).length;
-    body=`<p class="muted" style="margin:0 2px 6px">Every return this month, by condition:</p><div class="rp-cg">${['A','B','C','D'].map(g=>`<div>${gradeBadge(g)}<b>${cnt(g)}</b><small>${GRADE_MEAN[g]}</small></div>`).join('')}</div>`+
+    body=`<p class="muted" style="margin:0 2px 6px">Every return this month, by condition:</p><div class="rp-cg">${['A','B','C','D'].map(g=>{ const t={B:'DEFECT',C:'DAMAGE',D:'MISSING'}[g]; const go=t&&d.dmg.some(e=>e.type===t); return `<div${go?` class="rp-cgo" onclick="repDmGo('${t}')"`:''}>${gradeBadge(g)}<b>${cnt(g)}${go?' <span class="rp-cgar">›</span>':''}</b><small>${GRADE_MEAN[g]}</small></div>`; }).join('')}</div>`+
       (d.dmg.length?['MISSING','DAMAGE','DEFECT'].map(t=>{ const L=d.dmg.filter(e=>e.type===t); if(!L.length) return '';
-        return `<h3 style="margin:16px 2px 4px">${REP_WORD[t]} (${L.length})</h3>`+L.map(e=>repEventRow(e,key,true)).join(''); }).join(''):empty('No damaged or missing tool this month'));
+        return `<h3 id="rpDm_${t}" style="margin:16px 2px 4px">${REP_WORD[t]} (${L.length})</h3>`+L.map(e=>repEventRow(e,key,true)).join(''); }).join(''):empty('No damaged or missing tool this month'));
   }
   else if(id==='proc'){
     body=d.proc.length?REP_PROC.map(([t,title,why])=>{ const L=d.proc.filter(e=>e.type===t); if(!L.length) return '';
@@ -2618,6 +2619,7 @@ function repTechF(key,tk,f){ repTech(key,tk,true,f); const el=document.getElemen
 function repToEl(el,smooth){ if(!el) return; const h=document.querySelector('.top'); const y=el.getBoundingClientRect().top+window.scrollY-(h?h.offsetHeight:0)-10;
   const v=document.getElementById('view'), w=v&&v.firstElementChild; if(w){ const vb=v.getBoundingClientRect().bottom+window.scrollY, need=Math.max(0,y)+window.innerHeight; if(vb<need) w.style.paddingBottom=Math.ceil((parseFloat(w.style.paddingBottom)||0)+need-vb)+'px'; }
   window.scrollTo({top:Math.max(0,y),behavior:smooth?'smooth':'auto'}); }
+function repDmGo(t){ const el=document.getElementById('rpDm_'+t); if(!el) return; repToEl(el,true); el.classList.add('rp-flash'); setTimeout(()=>el.classList.remove('rp-flash'),1800); }
 function repToView(){ const v=document.getElementById('view'); if(v) repToEl(v,false); else window.scrollTo(0,0); }
 function repTech(key,tk,quiet,f){
   try{ tk=decodeURIComponent(tk); }catch(e){}
@@ -3655,7 +3657,7 @@ async function rej(id){ if(!requireKeeper())return;
    - only at a SAFE moment: first screen, technician choice / blocked / cabin-scan screen, store keeper PIN
    screen or dashboard, or while the page is in the background. Never in the middle of taking or returning
    tools, never while typing. A store keeper must type his PIN again after an update. */
-const APP_BUILD=3210;      /* bigger number = newer upload */
+const APP_BUILD=3310;      /* bigger number = newer upload */
 let AU_NEW=0, AU_BUSY=false;
 function auSafe(){
   const a=document.activeElement; if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
