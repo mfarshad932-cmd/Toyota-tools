@@ -997,23 +997,29 @@ function readTechId(txt){
 
 
 function meCard(badge){
+  /* Clean short card: Name + Section · ID once. Full section name only on tap. */
   if(!ME) return '';
   const full=SEC_FULL[ME.sec]||'';
-  return `<div class="idcard">
+  const chip=badge?String(badge):'';
+  return `<div class="idcard" style="cursor:pointer" onclick="meCardToggle()" title="Tap for full details">
       <div class="nm">${esc(ME.name)}</div>
-      <div class="meta">ID ${esc(ME.id)} · ${esc(ME.sec)}${full?' — '+esc(full):''}</div>
-      <div class="meta" style="margin-top:4px">Section <b>${esc(ME.sec)}</b>${full?' · '+esc(full):''} · Technician ID <b>${esc(ME.id)}</b></div>
-      ${badge?`<div class="badge">${badge}</div>`:''}
+      <div class="meta">${esc(ME.sec)} · ID ${esc(ME.id)}</div>
+      ${chip?`<div class="badge">${esc(chip)}</div>`:''}
+      <div id="meFull" class="meta" style="display:none;margin-top:8px;opacity:.9;line-height:1.45">
+        ${full?`Section <b>${esc(ME.sec)}</b> — ${esc(full)}<br>`:''}Technician ID <b>${esc(ME.id)}</b>
+      </div>
     </div>`;
 }
+function meCardToggle(){ const el=$('meFull'); if(!el) return; el.style.display=el.style.display==='none'?'block':'none'; }
+
 // GATE: show identity, camera on, must scan cabin QR
 function techGate(){
   GATE=false; TV=null;
   if(ME&&LOADED){ const od=overdueHeld(ME.id); if(od.length){ overdueBlock(od); return; } }
   setTitle('Scan cabin QR','Show this at the store cabin');
   $('view').innerHTML=`
-    ${meCard('Identity confirmed — scan cabin QR')}
-    <div class="alert info">Point your camera at the <b>cabin QR code</b> to open the tools.</div>
+    ${meCard('SCAN CABIN QR')}
+    <div class="alert info">Point at the <b>cabin QR</b> to open tools.</div>
     <div id="reader"></div>
     <div class="scanhint" id="camfail" style="display:none">
       <div class="qic">📷</div><div class="t">Camera not available</div>
@@ -1059,7 +1065,7 @@ function techStart(){
   stopScanner(); GATE=false; TS_SIG=techSig();
   if(!ME){ needLink(); return; }
   if(!LOADED){ TV='startwait'; setTitle('One moment','Checking your tools');
-    $('view').innerHTML=`${meCard('Loading…')}
+    $('view').innerHTML=`${meCard('')}
       <div class="alert info">Loading your tools…</div><div id="slowNet"></div>`;
     setTimeout(()=>{ const sn=$('slowNet'); if(sn&&TV==='startwait'&&!LOADED) sn.innerHTML=`<div class="alert warn"><b>Still loading.</b> Check the internet connection.</div><button class="btn primary" onclick="location.reload()">Reload</button>`; },8000);
     return; }
@@ -1069,7 +1075,7 @@ function techStart(){
   const od=out.filter(isOverdue);
   setTitle('Take or return?','You hold '+out.length+' tool'+(out.length>1?'s':''));
   $('view').innerHTML=`
-    ${meCard('You hold '+out.length+' tool'+(out.length>1?'s':''))}
+    ${meCard('TOOLS WITH YOU')}
     <div class="card" style="padding:6px 14px"><h3 style="margin:12px 4px 4px">Tools with you (${out.length})</h3>${heldRows(out)}</div>
     ${od.length?`<div class="alert red"><b>Overdue: ${esc(od.map(mvTag).join(', '))}</b><br>Kept more than ${LIMIT_TXT}. Return it first — then you can take new tools.</div>`:''}
     ${out.filter(isDueSoon).map(m=>`<div class="alert warn" id="dueWarn"><b>⚠ Return soon: ${esc(mvTag(m))} ${esc(toolOr(m.tid)[T_NAME]||'')}</b><br>Taken ${fmtTime(m.out)} · with you ${ago(m.out)} · <b>${leftTxt(m)}</b> to return it. After ${LIMIT_TXT} you cannot take new tools.</div>`).join('')}
@@ -1106,7 +1112,7 @@ function retCam(){
   $('view').innerHTML=`<button class="back" onclick="techStart()">‹ Back</button>
     <div class="actban ret"><span class="ar">↓</span> RETURN — scan the sticker on the tool</div>
     ${RET_BASKET.length?`<div class="alert green" style="margin-bottom:10px"><b>${RET_BASKET.length} tool${RET_BASKET.length>1?'s':''} scanned:</b> ${esc(RET_BASKET.map(b=>mvTag(LOG.find(x=>x.id===b.id)||{tid:'?'})).join(', '))}</div>`:''}
-    <div class="alert info"><b>QR scan required.</b> Point the camera at the sticker on the tool you are putting back. Tap-to-return without scan is not allowed.</div>
+    <div class="alert info"><b>Scan the tool QR</b> to return it.</div>
     <div id="reader"></div>
     <div class="scanhint" id="camfail" style="display:none"><div class="qic">📷</div><div class="t">Camera not available</div>
       <div class="d">Enable the camera and tap Retry. Every return needs a successful QR scan (anti-cheat).</div>
@@ -1238,8 +1244,7 @@ function techToolList(){
   TV='list'; stopScanner();
   setTitle('Take tools','Scan or search — many tools OK');
   $('view').innerHTML=`
-    ${meCard('Entry open · cabin scanned')}
-    <div class="alert green"><b>Take tools</b> — scan or search. Your name, section and ID are recorded on every request.</div>
+    ${meCard('ENTRY OPEN')}
     <div id="mine"></div>
     <div class="searchbar"><input class="big" id="q" placeholder="Scan or search tool…" oninput="tsearch()" autocomplete="off"></div>
     <button class="btn ghost" onclick="manualScreen('tech')" style="margin-bottom:10px">&#9998; Tool not in list — type it</button>
@@ -3780,7 +3785,7 @@ async function rej(id){ if(!requireKeeper())return;
    - only at a SAFE moment: first screen, technician choice / blocked / cabin-scan screen, store keeper PIN
    screen or dashboard, or while the page is in the background. Never in the middle of taking or returning
    tools, never while typing. A store keeper must type his PIN again after an update. */
-const APP_BUILD=3315;      /* bigger number = newer upload — v3315 same-loc ask 3+ only; name·sec·ID; full profile header */
+const APP_BUILD=3316;      /* bigger number = newer upload — v3316 clean tech idcard; short default */
 let AU_NEW=0, AU_BUSY=false;
 function auSafe(){
   const a=document.activeElement; if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
