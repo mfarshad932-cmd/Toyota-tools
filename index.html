@@ -1093,20 +1093,17 @@ function retCam(){
   if(!out.length&&!RET_BASKET.length){ toast('You have no tool to return'); techStart(); return; }
   if(!out.length){ retCheck(); return; }
   TV='retcam'; RET_BUSY=false;
-  setTitle('Return tools','Scan the tool QR — no cabin scan');
+  setTitle('Return tools','Scan the tool QR — required');
   $('view').innerHTML=`<button class="back" onclick="techStart()">‹ Back</button>
     <div class="actban ret"><span class="ar">↓</span> RETURN — scan the sticker on the tool</div>
     ${RET_BASKET.length?`<div class="alert green" style="margin-bottom:10px"><b>${RET_BASKET.length} tool${RET_BASKET.length>1?'s':''} scanned:</b> ${esc(RET_BASKET.map(b=>mvTag(LOG.find(x=>x.id===b.id)||{tid:'?'})).join(', '))}</div>`:''}
+    <div class="alert info"><b>QR scan required.</b> Point the camera at the sticker on the tool you are putting back. Tap-to-return without scan is not allowed.</div>
     <div id="reader"></div>
     <div class="scanhint" id="camfail" style="display:none"><div class="qic">📷</div><div class="t">Camera not available</div>
-      <div class="d">Tap the tool you are returning in the list below.</div></div>
-    <div class="card" id="retlist" style="padding:6px 14px;margin-top:10px;display:none"><h3 style="margin:12px 4px 4px">Tap the tool you return</h3>${heldRows(out,'quickReturn')}</div>
+      <div class="d">Enable the camera and tap Retry. Every return needs a successful QR scan (anti-cheat).</div>
+      <button class="btn primary" style="margin-top:10px" onclick="retCam()">Retry camera</button></div>
     ${RET_BASKET.length?`<button class="btn green" id="btnFinish" onclick="retCheck()">Finish return (${RET_BASKET.length})</button>`:''}`;
   startScanner(retScan);
-  const iv=setInterval(()=>{ const cf=$('camfail'), rl=$('retlist');
-    if(!rl||TV!=='retcam'){ clearInterval(iv); return; }
-    if(cf&&cf.style.display==='block'){ rl.style.display='block'; clearInterval(iv); }
-  },250);
 }
 function retScan(txt){
   if(RET_BUSY) return;
@@ -1134,16 +1131,35 @@ function retAdded(mid){
   TV='retadd';
   const mv=LOG.find(x=>x.id===mid)||{}; const t=toolOr(mv.tid); const b=RET_BASKET.find(x=>x.id===mid)||{cin:'A'};
   const left=retLeft().length, loc=retLoc(mv.tid);
+  const g=b.cin||'A';
   setTitle('Put it back','Tool '+mvTag(mv));
-  $('view').innerHTML=`<div class="actban ret"><span class="ar">✓</span> ADDED TO YOUR RETURN</div>
+  $('view').innerHTML=`<div class="actban ret"><span class="ar">✓</span> QR MATCHED — put it back</div>
     <div class="card detail"><div class="tid">${esc(mvTag(mv))}</div><div class="tname">${esc(t[T_NAME]||'')}</div></div>
     <div class="card center" id="retLoc" style="border:2px solid var(--ink)"><div class="muted" style="font-size:12px;letter-spacing:.12em;font-weight:800">PUT IT BACK IN</div>
       <div style="font-size:26px;font-weight:800;margin-top:4px">${esc(loc||'its place in the store')}</div>
-      <div class="muted" style="margin-top:4px">the same place you took it from</div></div>
-    <div class="alert ${b.cin==='A'?'green':'red'}">${b.cin==='A'?'<b>Condition: Good.</b>':'<b>Problem: '+esc(GRADE_WORD[b.cin]||'')+'</b>'+(b.note?' — '+esc(b.note):'')}</div>
-    <button class="btn ghost" id="btnProb" onclick="RP_FROM='add';retProblem('${mid}')">⚠ Report a problem with this tool</button>
-    ${left?`<button class="btn green" id="btnNext" onclick="retCam()">Scan next tool (${left} left)</button>`:''}
-    <button class="btn primary" id="btnFinish" onclick="retCheck()">Finish return (${RET_BASKET.length} tool${RET_BASKET.length>1?'s':''})</button>`;
+      <div class="muted" style="margin-top:4px">same location — keep it there</div></div>
+    <div class="card"><h3>Condition on return</h3><div class="grades" id="grades">
+      <button class="grade${g==='A'?' sel':''}" data-g="A" onclick="retSetGrade('${mid}','A')">A<small>Good</small></button>
+      <button class="grade${g==='B'?' sel':''}" data-g="B" onclick="retSetGrade('${mid}','B')">B<small>Defect</small></button>
+      <button class="grade${g==='C'?' sel':''}" data-g="C" onclick="retSetGrade('${mid}','C')">C<small>Damaged</small></button>
+      <button class="grade${g==='D'?' sel':''}" data-g="D" onclick="retSetGrade('${mid}','D')">D<small>Missing</small></button></div>
+      <div id="nw" class="${g==='A'?'hidden':''}"><label class="f" style="margin-top:6px">What is the problem?</label>
+        <textarea class="big" id="retNote" placeholder="e.g. one bolt missing from base plate" oninput="retSaveNote('${mid}')">${esc(b.note||'')}</textarea></div>
+      <div class="alert ${g==='A'?'green':'red'}" style="margin-top:10px">${g==='A'?'<b>Condition: Good.</b>':'<b>Problem: '+esc(GRADE_WORD[g]||g)+'</b>'+(b.note?' — '+esc(b.note):' — describe below')}</div></div>
+    ${left?`<button class="btn green" id="btnNext" onclick="retNextOrFinish('${mid}',1)">Scan next tool (${left} left)</button>`:''}
+    <button class="btn primary" id="btnFinish" onclick="retNextOrFinish('${mid}',0)">Finish return (${RET_BASKET.length} tool${RET_BASKET.length>1?'s':''})</button>`;
+}
+function retSaveNote(mid){ const b=RET_BASKET.find(x=>x.id===mid); if(!b) return; b.note=(($('retNote')&&$('retNote').value)||'').trim(); }
+function retSetGrade(mid,g){
+  const b=RET_BASKET.find(x=>x.id===mid); if(!b) return;
+  b.cin=g; if(g==='A') b.note='';
+  retAdded(mid);
+}
+function retNextOrFinish(mid,next){
+  const b=RET_BASKET.find(x=>x.id===mid);
+  if(!b||!b.cin){ toast('Select condition A–D'); return; }
+  if(b.cin!=='A'){ const note=(b.note||(($('retNote')&&$('retNote').value)||'').trim()); b.note=note; if(!note){ toast('Describe the problem'); return; } }
+  if(next) retCam(); else retCheck();
 }
 function retCheck(){
   RET_BASKET=RET_BASKET.filter(b=>{ const m=LOG.find(x=>x.id===b.id); return m&&m.status==='OUT'&&String(m.techId)===String(ME.id); });
@@ -1157,7 +1173,7 @@ function retCheck(){
       return `<div class="toolrow"><div class="id">${esc(mvTag(m))}</div><div class="nm">${esc(t[T_NAME]||'')} ${gradeBadge(b.cin)}<small>Back in: <b>${esc(retLoc(m.tid)||'its place')}</b></small>${b.note?`<small>${esc(b.note)}</small>`:''}
         <small><span class="rp-link" style="text-decoration:underline" onclick="RP_FROM='check';retProblem('${m.id}')">problem?</span> · <span class="rp-link" style="text-decoration:underline" onclick="retRemove('${m.id}')">remove</span></small></div></div>`; }).join('')}</div>
     ${left?`<button class="btn ghost" onclick="retCam()">＋ Scan another tool (${left} left)</button>`:''}
-    <div class="card center" id="retAsk" style="border:2px solid var(--ink)"><b style="font-size:16px">All OK?</b><br>Every tool is back <b>in its place</b> (same location).</div>
+    <div class="card center" id="retAsk" style="border:2px solid var(--ink)"><b style="font-size:16px">${RET_BASKET.length>=3||!left?'Are all tools back in the same location?':'All OK?'}</b><br>${RET_BASKET.length>=3||!left?'Confirm every tool is in <b>its listed place</b> before sending.':'Every tool is back <b>in its place</b> (same location).'}</div>
     <div id="retNoMsg"></div>
     <div class="row2"><button class="btn red" id="btnNo" onclick="retNo()">NO</button><button class="btn green" id="btnYes" onclick="retSubmit()">YES — send to store keeper</button></div>`;
 }
@@ -1534,28 +1550,62 @@ async function doTake(){
 }
 let RG=null;
 function returnScreen(tid,m){
-  TV='input';
-  const t=toolOr(tid);RG=null;setTitle('Return tool',t[T_ID]);
-  $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button>
-    <div class="actban ret"><span class="ar">↓</span> You are returning a tool</div>
-    ${m.rejBy?`<div class="alert red"><b>${esc(m.rejBy)} did not accept your return.</b><br>Check the tool and return it again.</div>`:''}
-    <div class="alert warn"><b>You have this tool${m.unit?' \u2014 PIECE '+m.unit:''}</b> · taken ${fmtTime(m.out)}${m.unit?'<br>Return the piece with sticker <b>'+esc(m.tid)+'-'+m.unit+'</b>':''}</div>
-    <div class="card detail"><div class="tid">${t[T_ID]}${m.unit?'-'+m.unit:''}</div><div class="tname">${esc(t[T_NAME]||'')}</div><div class="meta">${meta(t,1)}</div>${m.items?`<div class="kv" style="margin-top:10px"><span class="k">Pieces taken</span><span class="v">${esc(m.items)}</span></div>`:''}</div>
+  /* v3314 anti-cheat: ABCD + camera QR required. No return without matching scan. */
+  GATE=false; TV='retone'; RET_BUSY=false; RET_SCAN_OK=false; RET_FOCUS_MID=m.id; RG=null;
+  const t=toolOr(tid); const loc=retLoc(tid);
+  setTitle('Return tool', mvTag(m));
+  $('view').innerHTML=`<button class="back" onclick="techStart()">‹ Back</button>
+    <div class="actban ret"><span class="ar">↓</span> RETURN — scan this tool’s sticker</div>
+    ${m.rejBy?`<div class="alert red"><b>${esc(m.rejBy)} did not accept your return.</b><br>Check the tool and return it again — scan required.</div>`:''}
+    <div class="alert warn"><b>You have this tool${m.unit?' \u2014 PIECE '+m.unit:''}</b> · taken ${fmtTime(m.out)}${m.unit?'<br>Scan sticker <b>'+esc(m.tid)+'-'+m.unit+'</b>':''}</div>
+    <div class="card detail"><div class="tid">${esc(mvTag(m))}</div><div class="tname">${esc(t[T_NAME]||'')}</div><div class="meta">${meta(t,1)}</div>${m.items?`<div class="kv" style="margin-top:10px"><span class="k">Pieces taken</span><span class="v">${esc(m.items)}</span></div>`:''}</div>
+    <div class="card center" id="retLoc" style="border:2px solid var(--ink)"><div class="muted" style="font-size:12px;letter-spacing:.12em;font-weight:800">PUT IT BACK IN</div>
+      <div style="font-size:26px;font-weight:800;margin-top:4px">${esc(loc||'its place in the store')}</div>
+      <div class="muted" style="margin-top:4px">same location — keep it there</div></div>
+    <div id="reader"></div>
+    <div class="scanhint" id="camfail" style="display:none"><div class="qic">📷</div><div class="t">Camera not available</div>
+      <div class="d">Enable the camera and retry. Return is locked until this tool’s QR is scanned.</div>
+      <button class="btn primary" style="margin-top:10px" onclick="retRetryOne()">Retry camera</button></div>
+    <div id="scanOk" class="alert green" style="display:none"><b>QR matched.</b> Select condition A–D, then Return.</div>
     <div class="card"><h3>Condition on return</h3><div class="grades" id="grades">
       <button class="grade" data-g="A" onclick="sg('A')">A<small>Good</small></button><button class="grade" data-g="B" onclick="sg('B')">B<small>Defect</small></button>
       <button class="grade" data-g="C" onclick="sg('C')">C<small>Damaged</small></button><button class="grade" data-g="D" onclick="sg('D')">D<small>Missing</small></button></div>
       <div id="nw" class="hidden"><label class="f" style="margin-top:6px">What is the problem?</label><textarea class="big" id="note" placeholder="e.g. one bolt missing from base plate"></textarea></div></div>
-    <button class="btn green" onclick="doReturn('${m.id}')">Return tool</button>
-    <p class="muted center" style="margin-top:12px">Store keeper will confirm receipt</p>`;
+    <button class="btn green" id="retBtn" disabled onclick="doReturn('${m.id}')">Return tool</button>
+    <p class="muted center" style="margin-top:12px" id="retHint">Scan the QR on this tool to unlock Return</p>`;
+  startScanner(txt=>retOneScan(txt,m));
 }
-function sg(g){RG=g;document.querySelectorAll('#grades .grade').forEach(b=>b.classList.toggle('sel',b.dataset.g===g));$('nw').classList.toggle('hidden',g==='A');}
+let RET_SCAN_OK=false, RET_FOCUS_MID=null;
+function retRetryOne(){ const mv=LOG.find(x=>x.id===RET_FOCUS_MID); if(!mv||mv.status!=='OUT'){ toast('This tool is already returned'); techStart(); return; } returnScreen(mv.tid,mv); }
+function retOneScan(txt,m){
+  if(RET_BUSY||TV!=='retone') return;
+  if(String(txt||'').trim()===CABIN_CODE){ toast('That is the cabin QR — scan the tool sticker'); return; }
+  const q=parseToolQR(txt); if(!q){ toast('Unknown tool QR'); return; }
+  if(q.tid!==m.tid){ toast('Wrong tool — scan '+mvTag(m)); return; }
+  if(m.unit){ if(q.unit&&q.unit!==m.unit){ toast('Wrong piece — scan '+mvTag(m)); return; }
+    if(!q.unit&&unitsOf(m.tid)>1){ toast('Scan piece sticker '+mvTag(m)); return; } }
+  RET_SCAN_OK=true; RET_BUSY=true;
+  try{ stopScanner(); }catch(e){}
+  const ok=$('scanOk'); if(ok) ok.style.display='';
+  const h=$('retHint'); if(h) h.textContent='QR OK — select condition A–D, then Return';
+  armRetBtn();
+  toast('QR matched — '+mvTag(m));
+  RET_BUSY=false;
+}
+function armRetBtn(){ const b=$('retBtn'); if(b) b.disabled=!(RET_SCAN_OK&&RG); }
+function sg(g){RG=g;document.querySelectorAll('#grades .grade').forEach(b=>b.classList.toggle('sel',b.dataset.g===g));const nw=$('nw'); if(nw) nw.classList.toggle('hidden',g==='A'); armRetBtn();}
 async function doReturn(mid){
+  if(!RET_SCAN_OK||String(RET_FOCUS_MID)!==String(mid)){ toast('Scan the tool QR first'); return; }
   if(!RG){toast('Select condition');return;}const note=$('note')?$('note').value.trim():'';
   if(RG!=='A'&&!note){toast('Describe the problem');return;}
   const mv=LOG.find(x=>x.id===mid);
-  if(!mv||mv.status!=='OUT'){toast('This tool is already returned');techToolList();return;}
-  window.DB.update(mid,{ret:new Date().toISOString(),cin:RG,note,status:'PENDING'}).catch(saveErr);
-  toast('Returned — waiting for store keeper');techToolList();
+  if(!mv||mv.status!=='OUT'||String(mv.techId)!==String(ME.id)){toast('This tool is already returned');techStart();return;}
+  if(!RET_BASKET.some(b=>b.id===mid)) RET_BASKET.push({id:mid,cin:RG,note:note||''});
+  else { const b=RET_BASKET.find(x=>x.id===mid); b.cin=RG; b.note=note||''; }
+  RET_SCAN_OK=false; RET_FOCUS_MID=null;
+  const left=retLeft().length;
+  if(left>0){ toast('Added — put it back, then scan the next tool'); retCam(); return; }
+  retCheck();
 }
 
 /* ===== MANUAL TOOL — a tool that is not in the master list =====
@@ -3702,7 +3752,7 @@ async function rej(id){ if(!requireKeeper())return;
    - only at a SAFE moment: first screen, technician choice / blocked / cabin-scan screen, store keeper PIN
    screen or dashboard, or while the page is in the background. Never in the middle of taking or returning
    tools, never while typing. A store keeper must type his PIN again after an update. */
-const APP_BUILD=3313;      /* bigger number = newer upload — v3313 H2H infer + accept for unmarked REQ */
+const APP_BUILD=3314;      /* bigger number = newer upload — v3314 return QR required + ABCD + same-location ask */
 let AU_NEW=0, AU_BUSY=false;
 function auSafe(){
   const a=document.activeElement; if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
