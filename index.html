@@ -1386,7 +1386,7 @@ function xferSend(mid,ackOd){
     items:m.items||'',full:!!m.full,pcs:m.pcs||0,status:'REQ',fromId:String(m.id),fromTech:m.tech,fromTechId:m.techId,fromWasOverdue:!!isOverdue(m)}).catch(saveErr);
   toast('Sent to store keeper — from '+String(m.tech).split(' ')[0]); techToolList();
 }
-/* ===== v3311/3312 H2H: find holder OUT by fromId (String) or tid+fromTechId(+unit) ===== */
+/* ===== v3311/3313 H2H: find holder OUT by fromId (String) or tid+fromTechId(+unit); infer if markers missing ===== */
 function xferIsH2H(m){ return !!(m&&(m.fromId||m.fromTechId||m.fromTech)); }
 function xferSource(m){
   if(!m) return null;
@@ -1396,8 +1396,16 @@ function xferSource(m){
     &&(!unit||x.unit===unit)
     &&((uid!=null&&uid!==''&&String(x.techId)===String(uid))||(!!uname&&String(x.tech)===String(uname))))||null;
 }
-function xferFrom(m){ return xferSource(m); }
-function xferBadge(m){ return xferIsH2H(m)?`<span class="badge xfer">⇄ Exchange</span>`:''; }
+/* REQ created without from* (old path / race): one OUT of same tool with another tech => treat as exchange */
+function xferInfer(m){
+  if(!m||m.status!=='REQ'||xferIsH2H(m)) return null;
+  const outs=LOG.filter(x=>x.kind==='TOOL'&&x.status==='OUT'&&x.tid===m.tid&&String(x.techId)!==String(m.techId)
+    &&(!m.unit||x.unit===m.unit||(!x.unit&&!m.unit)));
+  return outs.length===1?outs[0]:null;
+}
+function xferResolve(m){ return xferSource(m)||xferInfer(m); }
+function xferFrom(m){ return xferResolve(m); }
+function xferBadge(m){ return (xferIsH2H(m)||!!xferInfer(m))?`<span class="badge xfer">⇄ Exchange</span>`:''; }
 let K_OPEN=null;
 function kToggle(id){ const s=String(id); K_OPEN=(K_OPEN===s?null:s); if($('list')) rlist(); else dash(); }
 function pendingScreen(tid,m){
@@ -1519,6 +1527,8 @@ async function doTake(){
     items=[...document.querySelectorAll('.setrow input:checked')].map(b=>b.value).join(', ');
   }
   TAKE_AT=Date.now(); TAKE_KEY=ME.id+'|'+CUR;
+  { const hold=LOG.find(x=>x.kind==='TOOL'&&x.status==='OUT'&&x.tid===CUR&&String(x.techId)!==String(ME.id)&&(!CUR_U||x.unit===CUR_U||(!x.unit&&!CUR_U)));
+    if(hold&&!pcNof(CUR)){ toast('Tool is with '+String(hold.tech).split(' ')[0]+' — use Hand to hand exchange'); xferAsk(hold.id); return; } }
   window.DB.add({kind:'TOOL',tid:CUR,unit:UU>1?CUR_U:null,tech:ME.name,techId:ME.id,sec:ME.sec,idBy:ID_METHOD,req:new Date().toISOString(),out:null,ret:null,cin:null,note:'',items,full,pcs,status:'REQ'}).catch(saveErr);
   toast('Sent to store keeper — '+CUR);techToolList();
 }
@@ -1990,7 +2000,7 @@ function rlist(){
     const dmg=m.status==='PENDING'&&m.cin&&m.cin!=='A';
     const when=m.status==='REQ'?`requested ${fmtTime(m.req)} · ${ago(m.req)} ago`:`out ${fmtTime(m.out)}${m.status==='OUT'?' · '+ago(m.out)+' ago':''}`;
     let ban='';
-    if(m.status==='REQ')ban=((m.fromId||m.fromTechId||m.fromTech)?`<div class="actban take"><span class="ar">⇄</span> Hand to hand <span class="sm2">from ${esc(m.fromTech||'')} → to ${esc(m.tech)}</span></div>`:`<div class="actban take"><span class="ar">↑</span> Taking a tool <span class="sm2">give it and accept</span></div>`)+
+    if(m.status==='REQ')ban=((xferIsH2H(m)||xferInfer(m))?`<div class="actban take"><span class="ar">⇄</span> HAND-TO-HAND EXCHANGE <span class="sm2">from ${esc((m.fromTech||(xferInfer(m)||{}).tech||''))} → to ${esc(m.tech)}</span></div>`:`<div class="actban take"><span class="ar">↑</span> Taking a tool <span class="sm2">give it and accept</span></div>`)+
       (m.idBy==='typed'?`<div class="alert warn" style="margin:0 0 9px;padding:9px 11px;font-size:12px"><b>ID was typed, not scanned</b> — check the man in front of you is really <b>${esc(m.tech)}</b>.</div>`:'');
     if(m.status==='PENDING')ban=`<div class="actban ret"><span class="ar">↓</span> Returning a tool <span class="sm2">check it and accept</span></div>`;
     const shortOut=(TAB==='out'||TAB==='due'||TAB==='overdue')&&m.status==='OUT';
@@ -3066,29 +3076,30 @@ function switchKeeper(){ KEEPER=null; curStoreView=null; pinScreen(); }
 /* the store keeper's last check before a tool leaves: is it really free? */
 function reqBlock(m){
   { const tb=keeperBlockFor(m.techId); if(tb) return tb; }
-  if(xferIsH2H(m)){                                  /* v3311: H2H — allow when holder still has it; never "Already out with" */
-    return xferSource(m)?'':'The tool is not with '+(m.fromTech||'the other technician')+' any more — decline this request'; }
+  const src=xferResolve(m);                                  /* v3313: H2H markers OR inferred single holder */
+  if(src||xferIsH2H(m)){
+    return src?'':'The tool is not with '+(m.fromTech||'the other technician')+' any more — decline this request'; }
   const N=pcNof(m.tid);
   const others=LOG.filter(x=>x.kind==='TOOL'&&x.tid===m.tid&&x.id!==m.id&&String(x.id)!==String(m.fromId||'')&&(x.status==='OUT'||x.status==='PENDING'));
   if(!N){ const U=unitsOf(m.tid);
-    if(others.length>=U) return U>1?('All '+U+' are already out \u2014 decline this request'):('Already out with '+others[0].tech+' \u2014 decline this request');
-    if(m.unit){ const h=others.find(x=>x.unit===m.unit); if(h) return 'Piece '+m.unit+' is already out with '+h.tech+' \u2014 decline this request'; }
+    if(others.length>=U) return U>1?('All '+U+' are already out — decline this request'):('Already out with '+others[0].tech+' — decline this request');
+    if(m.unit){ const h=others.find(x=>x.unit===m.unit); if(h) return 'Piece '+m.unit+' is already out with '+h.tech+' — decline this request'; }
     return ''; }
   const used=others.reduce((a,x)=>a+pcsOf(x,N),0);
   const want=pcsOf(m,N);
-  return used+want>N?('Only '+Math.max(0,N-used)+' piece(s) left in store \u2014 decline this request'):'';
+  return used+want>N?('Only '+Math.max(0,N-used)+' piece(s) left in store — decline this request'):'';
 }
 async function reqOk(id){ if(!requireKeeper())return;
   const m=LOG.find(x=>x.id===id); if(!m||m.status!=='REQ'){toast('Already handled');return;}
   const why=reqBlock(m); if(why){toast(why);return;}
-  if(xferIsH2H(m)){ const f=xferSource(m), now=new Date().toISOString();   /* v3311/3312 hand to hand */
-    if(!f){ toast('The tool is not with '+(m.fromTech||'the other technician')+' any more — decline this request'); return; }
+  const f=xferResolve(m), now=new Date().toISOString();
+  if(f){                                          /* v3313 hand to hand (markers or inferred) */
     const wasOd=!!(m.fromWasOverdue||isOverdue(f));
     window.DB.update(f.id,{status:'IN',ret:now,recvAt:now,inBy:KEEPER.short,inById:KEEPER.id,inByName:KEEPER.name,passedTo:m.tech,passedToId:m.techId,passedAt:now}).catch(saveErr);
-    window.DB.update(id,{status:'OUT',out:now,outBy:KEEPER.short,outById:KEEPER.id,outByName:KEEPER.name,fromWasOverdue:wasOd}).catch(saveErr);
+    window.DB.update(id,{status:'OUT',out:now,outBy:KEEPER.short,outById:KEEPER.id,outByName:KEEPER.name,
+      fromId:m.fromId||String(f.id),fromTech:m.fromTech||f.tech,fromTechId:m.fromTechId!=null?m.fromTechId:f.techId,fromWasOverdue:wasOd}).catch(saveErr);
     toast('Exchange done — now with '+String(m.tech).split(' ')[0]); return; }
-  window.DB.update(id,{status:'OUT',out:new Date().toISOString(),
-    outBy:KEEPER.short,outById:KEEPER.id,outByName:KEEPER.name}).catch(saveErr);
+  window.DB.update(id,{status:'OUT',out:now,outBy:KEEPER.short,outById:KEEPER.id,outByName:KEEPER.name}).catch(saveErr);
   toast('Handed over by '+KEEPER.short); }
 async function reqRej(id){ if(!requireKeeper())return;
   const m=LOG.find(x=>x.id===id); if(!m||m.status!=='REQ'){toast('Already handled');return;}
@@ -3691,7 +3702,7 @@ async function rej(id){ if(!requireKeeper())return;
    - only at a SAFE moment: first screen, technician choice / blocked / cabin-scan screen, store keeper PIN
    screen or dashboard, or while the page is in the background. Never in the middle of taking or returning
    tools, never while typing. A store keeper must type his PIN again after an update. */
-const APP_BUILD=3312;      /* bigger number = newer upload — v3312 H2H accept + exchange badge + overdue warn */
+const APP_BUILD=3313;      /* bigger number = newer upload — v3313 H2H infer + accept for unmarked REQ */
 let AU_NEW=0, AU_BUSY=false;
 function auSafe(){
   const a=document.activeElement; if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
