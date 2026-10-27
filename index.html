@@ -995,17 +995,24 @@ function readTechId(txt){
   return null;
 }
 
+
+function meCard(badge){
+  if(!ME) return '';
+  const full=SEC_FULL[ME.sec]||'';
+  return `<div class="idcard">
+      <div class="nm">${esc(ME.name)}</div>
+      <div class="meta">ID ${esc(ME.id)} · ${esc(ME.sec)}${full?' — '+esc(full):''}</div>
+      <div class="meta" style="margin-top:4px">Section <b>${esc(ME.sec)}</b>${full?' · '+esc(full):''} · Technician ID <b>${esc(ME.id)}</b></div>
+      ${badge?`<div class="badge">${badge}</div>`:''}
+    </div>`;
+}
 // GATE: show identity, camera on, must scan cabin QR
 function techGate(){
   GATE=false; TV=null;
   if(ME&&LOADED){ const od=overdueHeld(ME.id); if(od.length){ overdueBlock(od); return; } }
   setTitle('Scan cabin QR','Show this at the store cabin');
   $('view').innerHTML=`
-    <div class="idcard">
-      <div class="nm">${esc(ME.name)}</div>
-      <div class="meta">ID ${esc(ME.id)} · ${esc(ME.sec)} — ${SEC_FULL[ME.sec]||''}</div>
-      <div class="badge">Identity confirmed</div>
-    </div>
+    ${meCard('Identity confirmed — scan cabin QR')}
     <div class="alert info">Point your camera at the <b>cabin QR code</b> to open the tools.</div>
     <div id="reader"></div>
     <div class="scanhint" id="camfail" style="display:none">
@@ -1052,7 +1059,7 @@ function techStart(){
   stopScanner(); GATE=false; TS_SIG=techSig();
   if(!ME){ needLink(); return; }
   if(!LOADED){ TV='startwait'; setTitle('One moment','Checking your tools');
-    $('view').innerHTML=`<div class="idcard"><div class="nm">${esc(ME.name)}</div><div class="meta">ID ${esc(ME.id)} · ${esc(ME.sec)}</div></div>
+    $('view').innerHTML=`${meCard('Loading…')}
       <div class="alert info">Loading your tools…</div><div id="slowNet"></div>`;
     setTimeout(()=>{ const sn=$('slowNet'); if(sn&&TV==='startwait'&&!LOADED) sn.innerHTML=`<div class="alert warn"><b>Still loading.</b> Check the internet connection.</div><button class="btn primary" onclick="location.reload()">Reload</button>`; },8000);
     return; }
@@ -1062,12 +1069,12 @@ function techStart(){
   const od=out.filter(isOverdue);
   setTitle('Take or return?','You hold '+out.length+' tool'+(out.length>1?'s':''));
   $('view').innerHTML=`
-    <div class="idcard"><div class="nm">${esc(ME.name)}</div><div class="meta">ID ${esc(ME.id)} · ${esc(ME.sec)} — ${SEC_FULL[ME.sec]||''}</div></div>
+    ${meCard('You hold '+out.length+' tool'+(out.length>1?'s':''))}
     <div class="card" style="padding:6px 14px"><h3 style="margin:12px 4px 4px">Tools with you (${out.length})</h3>${heldRows(out)}</div>
     ${od.length?`<div class="alert red"><b>Overdue: ${esc(od.map(mvTag).join(', '))}</b><br>Kept more than ${LIMIT_TXT}. Return it first — then you can take new tools.</div>`:''}
     ${out.filter(isDueSoon).map(m=>`<div class="alert warn" id="dueWarn"><b>⚠ Return soon: ${esc(mvTag(m))} ${esc(toolOr(m.tid)[T_NAME]||'')}</b><br>Taken ${fmtTime(m.out)} · with you ${ago(m.out)} · <b>${leftTxt(m)}</b> to return it. After ${LIMIT_TXT} you cannot take new tools.</div>`).join('')}
     <button class="btn choice take" id="btnTake" onclick="techTake()">TAKE TOOLS<small>${od.length?'Blocked — return the overdue tool first':'Scan the cabin QR'}</small></button>
-    ${RET_BASKET.length?`<div class="alert warn" id="basketWarn"><b>${RET_BASKET.length} tool${RET_BASKET.length>1?'s':''} scanned but NOT sent yet.</b> <span class="rp-link" style="text-decoration:underline" onclick="retCheck()">Finish return ›</span></div>`:''}
+    ${RET_BASKET.length?`<div class="alert warn" id="basketWarn"><b>${RET_BASKET.length} tool${RET_BASKET.length>1?'s':''} scanned but NOT sent yet.</b> <span class="rp-link" style="text-decoration:underline" onclick="retFinishGate()">Finish return ›</span></div>`:''}
     <button class="btn choice ret" id="btnRet" onclick="retCam()">RETURN TOOLS<small>Scan the tool — no cabin scan</small></button>`;
 }
 function techTake(){ const od=overdueHeld(ME.id); if(od.length){ overdueBlock(od); return; } techGate(); }
@@ -1086,6 +1093,8 @@ function overdueBlock(od){
 let RET_BUSY=false, RET_BASKET=[], RP_FROM='add';
 const retLeft=()=>heldOut(ME.id).filter(m=>!RET_BASKET.some(b=>b.id===m.id));
 const retLoc=tid=>{ const t=toolOr(tid); return t[T_LOC]||''; };
+/* Same-location Yes/No only when tech holds 3+ tools (or basket has 3+). 1–2 tools: scan + grade + send. */
+const needsSameLocAsk=()=>heldOut(ME.id).length>=3 || RET_BASKET.length>=3;
 function retCam(){
   GATE=false;
   RET_BASKET=RET_BASKET.filter(b=>{ const m=LOG.find(x=>x.id===b.id); return m&&m.status==='OUT'&&String(m.techId)===String(ME.id); });
@@ -1102,7 +1111,7 @@ function retCam(){
     <div class="scanhint" id="camfail" style="display:none"><div class="qic">📷</div><div class="t">Camera not available</div>
       <div class="d">Enable the camera and tap Retry. Every return needs a successful QR scan (anti-cheat).</div>
       <button class="btn primary" style="margin-top:10px" onclick="retCam()">Retry camera</button></div>
-    ${RET_BASKET.length?`<button class="btn green" id="btnFinish" onclick="retCheck()">Finish return (${RET_BASKET.length})</button>`:''}`;
+    ${RET_BASKET.length?`<button class="btn green" id="btnFinish" onclick="retFinishGate()">Finish return (${RET_BASKET.length})</button>`:''}`;
   startScanner(retScan);
 }
 function retScan(txt){
@@ -1159,21 +1168,30 @@ function retNextOrFinish(mid,next){
   const b=RET_BASKET.find(x=>x.id===mid);
   if(!b||!b.cin){ toast('Select condition A–D'); return; }
   if(b.cin!=='A'){ const note=(b.note||(($('retNote')&&$('retNote').value)||'').trim()); b.note=note; if(!note){ toast('Describe the problem'); return; } }
-  if(next) retCam(); else retCheck();
+  if(next) retCam();
+  else if(needsSameLocAsk()) retCheck();
+  else retSubmit();
+}
+function retFinishGate(){
+  RET_BASKET=RET_BASKET.filter(b=>{ const m=LOG.find(x=>x.id===b.id); return m&&m.status==='OUT'&&String(m.techId)===String(ME.id); });
+  if(!RET_BASKET.length){ toast('Nothing scanned yet'); retCam(); return; }
+  if(needsSameLocAsk()) retCheck(); else retSubmit();
 }
 function retCheck(){
   RET_BASKET=RET_BASKET.filter(b=>{ const m=LOG.find(x=>x.id===b.id); return m&&m.status==='OUT'&&String(m.techId)===String(ME.id); });
   if(!RET_BASKET.length){ toast('Nothing scanned yet'); retCam(); return; }
+  /* 1–2 tools out: never show the all-location ask — send straight away */
+  if(!needsSameLocAsk()){ retSubmit(); return; }
   TV='retcheck'; stopScanner();
   const left=retLeft().length;
   setTitle('Check your return',RET_BASKET.length+' tool'+(RET_BASKET.length>1?'s':''));
-  $('view').innerHTML=`<div class="actban ret"><span class="ar">↓</span> LAST CHECK</div>
+  $('view').innerHTML=`<div class="actban ret"><span class="ar">↓</span> LAST CHECK — 3+ tools</div>
     <div class="card" style="padding:6px 14px"><h3 style="margin:12px 4px 6px">You return ${RET_BASKET.length} tool${RET_BASKET.length>1?'s':''}</h3>
     ${RET_BASKET.map(b=>{ const m=LOG.find(x=>x.id===b.id)||{}; const t=toolOr(m.tid);
       return `<div class="toolrow"><div class="id">${esc(mvTag(m))}</div><div class="nm">${esc(t[T_NAME]||'')} ${gradeBadge(b.cin)}<small>Back in: <b>${esc(retLoc(m.tid)||'its place')}</b></small>${b.note?`<small>${esc(b.note)}</small>`:''}
         <small><span class="rp-link" style="text-decoration:underline" onclick="RP_FROM='check';retProblem('${m.id}')">problem?</span> · <span class="rp-link" style="text-decoration:underline" onclick="retRemove('${m.id}')">remove</span></small></div></div>`; }).join('')}</div>
     ${left?`<button class="btn ghost" onclick="retCam()">＋ Scan another tool (${left} left)</button>`:''}
-    <div class="card center" id="retAsk" style="border:2px solid var(--ink)"><b style="font-size:16px">${RET_BASKET.length>=3||!left?'Are all tools back in the same location?':'All OK?'}</b><br>${RET_BASKET.length>=3||!left?'Confirm every tool is in <b>its listed place</b> before sending.':'Every tool is back <b>in its place</b> (same location).'}</div>
+    <div class="card center" id="retAsk" style="border:2px solid var(--ink)"><b style="font-size:16px">Are all tools back in the same location?</b><br>You have <b>3 or more</b> tools out. Confirm every tool is in <b>its listed place</b> before sending.</div>
     <div id="retNoMsg"></div>
     <div class="row2"><button class="btn red" id="btnNo" onclick="retNo()">NO</button><button class="btn green" id="btnYes" onclick="retSubmit()">YES — send to store keeper</button></div>`;
 }
@@ -1220,7 +1238,8 @@ function techToolList(){
   TV='list'; stopScanner();
   setTitle('Take tools','Scan or search — many tools OK');
   $('view').innerHTML=`
-    <div class="alert green"><b>${esc(ME.name)}</b> · entry open · take as many tools as you need</div>
+    ${meCard('Entry open · cabin scanned')}
+    <div class="alert green"><b>Take tools</b> — scan or search. Your name, section and ID are recorded on every request.</div>
     <div id="mine"></div>
     <div class="searchbar"><input class="big" id="q" placeholder="Scan or search tool…" oninput="tsearch()" autocomplete="off"></div>
     <button class="btn ghost" onclick="manualScreen('tech')" style="margin-bottom:10px">&#9998; Tool not in list — type it</button>
@@ -1292,10 +1311,10 @@ function tsearch(){
     if(t[T_TYPE]==='Set')b+='<span class="badge set">Set</span>';
     if(isManual(t[T_ID]))b+='<span class="badge pend">Manual</span>';
     let who='';
-    if(fm)who=`<small style="color:${isOverdue(fm)?'var(--red)':'var(--amber)'};font-weight:600">Out with ${esc(fm.tech)} \u00b7 ${esc(fm.sec)} \u00b7 ${ago(fm.out)} ago${isOverdue(fm)?' \u00b7 OVERDUE':''}</small>`;
-    else if(m&&st==='OUT')who=`<small style="color:${over?'var(--red)':'var(--amber)'};font-weight:600">Out with ${esc(m.tech)} · ${esc(m.sec)} · ${ago(m.out)} ago${over?' · OVERDUE':''}</small>`;
-    else if(m&&st==='REQ')who=`<small style="color:var(--amber)">Requested by ${esc(m.tech)} · ${esc(m.sec)} · waiting store keeper</small>`;
-    else if(m&&st==='PENDING')who=`<small style="color:var(--amber)">Returned by ${esc(m.tech)} · waiting store keeper</small>`;
+    if(fm)who=`<small style="color:${isOverdue(fm)?'var(--red)':'var(--amber)'};font-weight:600">Out with ${techPlain(fm)} · ${ago(fm.out)} ago${isOverdue(fm)?' · OVERDUE':''}</small>`;
+    else if(m&&st==='OUT')who=`<small style="color:${over?'var(--red)':'var(--amber)'};font-weight:600">Out with ${techPlain(m)} · ${ago(m.out)} ago${over?' · OVERDUE':''}</small>`;
+    else if(m&&st==='REQ')who=`<small style="color:var(--amber)">Requested by ${techPlain(m)} · waiting store keeper</small>`;
+    else if(m&&st==='PENDING')who=`<small style="color:var(--amber)">Returned by ${techPlain(m)} · waiting store keeper</small>`;
     return `<div class="toolrow" onclick="openTool('${t[T_ID]}')"><div class="id">${t[T_ID]}</div>
       <div class="nm">${esc(t[T_NAME]||'(no name)')} ${b}<small>${meta(t)}</small>${who}</div>
       <div class="go">›</div></div>`;
@@ -1344,8 +1363,8 @@ function reqScreen(tid,m){
   $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button>
     <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t,1)}</div></div>${unitLine(m)}
     <div class="alert warn">${mine?'<b>You requested this tool.</b><br>The store keeper must hand it over and accept before it is yours.':'<b>Requested by '+esc(m.tech)+'.</b><br>Waiting for the store keeper to hand it over.'}</div>
-    <div class="card"><div class="kv"><span class="k">Requested by</span><span class="v">${esc(m.tech)}</span></div>
-      <div class="kv"><span class="k">Section</span><span class="v">${esc(m.sec)}</span></div>
+    <div class="card"><div class="kv"><span class="k">Requested by</span><span class="v">${techTag(m)}</span></div>
+      <div class="kv"><span class="k">Section</span><span class="v">${esc(m.sec)}${SEC_FULL[m.sec]?' — '+esc(SEC_FULL[m.sec]):''}</span></div>
       <div class="kv"><span class="k">Requested</span><span class="v">${fmtTime(m.req)} · ${ago(m.req)} ago</span></div></div>
     ${mine?`<button class="btn ghost" onclick="cancelReq('${m.id}')">Cancel my request</button>`:''}
     <button class="btn ghost" onclick="techToolList()">Back to tools</button>`;
@@ -1361,7 +1380,7 @@ function outWithScreen(tid,m){
   $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button>
     <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t,1)}</div></div>${unitLine(m)}
     <div class="alert ${over?'red':'warn'}"><b>${m.status==='REQ'?'This tool is already requested.':m.status==='PENDING'?'This tool is coming back.':'This tool is already out.'}</b><br>You cannot take it until it is back in store.</div>
-    <div class="card"><div class="kv"><span class="k">Taken by</span><span class="v">${esc(m.tech)}</span></div>
+    <div class="card"><div class="kv"><span class="k">Taken by</span><span class="v">${techTag(m)}</span></div>
       <div class="kv"><span class="k">Section</span><span class="v">${esc(m.sec)} — ${SEC_FULL[m.sec]||''}</span></div>
       <div class="kv"><span class="k">Since</span><span class="v">${m.out?fmtTime(m.out)+' · '+ago(m.out)+' ago':'not handed over yet'}</span></div>
       ${over?`<div class="kv"><span class="k">Status</span><span class="v" style="color:var(--red)">Overdue</span></div>`:''}
@@ -1385,10 +1404,10 @@ function xferAsk(mid){
   $('view').innerHTML=`<button class="back" onclick="openTool('${esc(m.tid)}'${m.unit?`,'${m.unit}'`:''})">‹ Back</button>
     <div class="actban take"><span class="ar">⇄</span> HAND TO HAND</div>
     <div class="card detail"><div class="tid">${esc(mvTag(m))}</div><div class="tname">${esc(t[T_NAME]||'')}</div></div>
-    <div class="card"><div class="kv"><span class="k">Now with</span><span class="v">${esc(m.tech)} · ${esc(m.sec)}</span></div>
-      <div class="kv"><span class="k">Goes to</span><span class="v"><b>${esc(ME.name)}</b> · ${esc(ME.sec)}</span></div>
+    <div class="card"><div class="kv"><span class="k">Now with</span><span class="v">${techTag(m)}</span></div>
+      <div class="kv"><span class="k">Goes to</span><span class="v">${techTag(ME)}</span></div>
       ${m.items?`<div class="kv"><span class="k">Pieces</span><span class="v">${esc(m.items)}</span></div>`:''}</div>
-    ${holdOd?`<div class="alert red"><b>⚠ This tool is already OVERDUE</b> with ${esc(m.tech)}.<br>Finish your work and return it on time for handover. Do not keep it longer.</div>`:''}
+    ${holdOd?`<div class="alert red"><b>⚠ This tool is already OVERDUE</b> with ${esc(techPlain(m))}.<br>Finish your work and return it on time for handover. Do not keep it longer.</div>`:''}
     <div class="alert warn"><b>${esc(String(m.tech).split(' ')[0])} must give you the tool.</b><br>The store keeper confirms. Then the tool is in <b>your</b> name.</div>
     <button class="btn green" id="btnXfer" onclick="xferSend('${m.id}',${holdOd?1:0})">${holdOd?'I understand — send request':'Send to store keeper'}</button>`;
 }
@@ -1429,7 +1448,7 @@ function pendingScreen(tid,m){
   const t=toolOr(tid);setTitle('Tool returning',t[T_ID]);
   $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button>
     <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t,1)}</div></div>${unitLine(m)}
-    <div class="alert info"><b>Just returned by ${esc(m.tech)}.</b><br>Waiting for the store keeper to confirm. Available again after that.</div>
+    <div class="alert info"><b>Just returned by ${esc(techPlain(m))}.</b><br>Waiting for the store keeper to confirm. Available again after that.</div>
     <button class="btn ghost" onclick="techToolList()">Back to tools</button>`;
 }
 
@@ -1441,7 +1460,7 @@ function takeScreen(tid){
   PK={mode:null,n:0,N:N};
   const head=`<button class="back" onclick="techToolList()">\u2039 Back</button>
     <div class="card detail"><div class="tid">${t[T_ID]}${U_SCAN&&CUR_U?'-'+CUR_U:''}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t,1)}</div></div>
-    <div class="card"><div class="kv"><span class="k">Taken by</span><span class="v">${esc(ME.name)}</span></div><div class="kv"><span class="k">Section \u00b7 ID</span><span class="v">${esc(ME.sec)} \u00b7 ${esc(ME.id)}</span></div><div class="kv"><span class="k">Time</span><span class="v">now (auto)</span></div></div>`;
+    <div class="card"><div class="kv"><span class="k">Taken by</span><span class="v">${esc(techPlain(ME))}</span></div><div class="kv"><span class="k">Section \u00b7 ID</span><span class="v">${esc(ME.sec)} \u00b7 ${esc(ME.id)}</span></div><div class="kv"><span class="k">Time</span><span class="v">now (auto)</span></div></div>`;
   const dmg0=dmgOf(tid);   // a damage report on any piece of this number is shown
   const head2=dmg0?`<div class="alert red"><b>Open damage report${dmg0.unit?' on piece '+dmg0.unit:''}: ${esc(GRADE_WORD[dmg0.cin]||'Damaged')}.</b><br>${dmg0.note?esc(dmg0.note)+'<br>':''}Check it with the store keeper before you take it.</div>`:'';
   if(N){
@@ -1605,7 +1624,7 @@ async function doReturn(mid){
   RET_SCAN_OK=false; RET_FOCUS_MID=null;
   const left=retLeft().length;
   if(left>0){ toast('Added — put it back, then scan the next tool'); retCam(); return; }
-  retCheck();
+  if(needsSameLocAsk()) retCheck(); else retSubmit();
 }
 
 /* ===== MANUAL TOOL — a tool that is not in the master list =====
@@ -2039,7 +2058,7 @@ function rlist(){
     let bh='';
     if(TAB==='pending'&&m.retBatch&&!seenB[m.retBatch]){ seenB[m.retBatch]=1;
       const B=items.filter(x=>x.m.retBatch===m.retBatch).map(x=>x.m), nAll=B.filter(x=>!pcNof(x.tid)).length;
-      bh=`<div class="rec" id="batch_${esc(m.retBatch)}" style="border:2px solid var(--ink);background:#fafbfc"><div class="hd"><span class="rname">↓ ${esc(m.tech)} returned ${B.length} tool${B.length>1?'s':''}</span><span class="rp-when">${fmtTime(m.ret)}</span></div>
+      bh=`<div class="rec" id="batch_${esc(m.retBatch)}" style="border:2px solid var(--ink);background:#fafbfc"><div class="hd"><span class="rname">↓ ${esc(techPlain(m))} returned ${B.length} tool${B.length>1?'s':''}</span><span class="rp-when">${fmtTime(m.ret)}</span></div>
         <div class="sub">${techTag(m)}${m.placed?' · says: <b>all back in their place</b>':''}</div>
         <div class="sub">${B.map(x=>esc(mvTag(x))+(x.cin&&x.cin!=='A'?' ('+x.cin+')':'')).join(' · ')}</div>
         ${nAll?`<div class="row2"><button class="btn green sm" onclick="acceptBatch('${esc(m.retBatch)}')">Accept all (${nAll}) — checked</button></div>`:''}
@@ -2050,14 +2069,14 @@ function rlist(){
     const dmg=m.status==='PENDING'&&m.cin&&m.cin!=='A';
     const when=m.status==='REQ'?`requested ${fmtTime(m.req)} · ${ago(m.req)} ago`:`out ${fmtTime(m.out)}${m.status==='OUT'?' · '+ago(m.out)+' ago':''}`;
     let ban='';
-    if(m.status==='REQ')ban=((xferIsH2H(m)||xferInfer(m))?`<div class="actban take"><span class="ar">⇄</span> HAND-TO-HAND EXCHANGE <span class="sm2">from ${esc((m.fromTech||(xferInfer(m)||{}).tech||''))} → to ${esc(m.tech)}</span></div>`:`<div class="actban take"><span class="ar">↑</span> Taking a tool <span class="sm2">give it and accept</span></div>`)+
-      (m.idBy==='typed'?`<div class="alert warn" style="margin:0 0 9px;padding:9px 11px;font-size:12px"><b>ID was typed, not scanned</b> — check the man in front of you is really <b>${esc(m.tech)}</b>.</div>`:'');
-    if(m.status==='PENDING')ban=`<div class="actban ret"><span class="ar">↓</span> Returning a tool <span class="sm2">check it and accept</span></div>`;
+    if(m.status==='REQ')ban=((xferIsH2H(m)||xferInfer(m))?`<div class="actban take"><span class="ar">⇄</span> HAND-TO-HAND EXCHANGE <span class="sm2">from ${esc(techPlain({tech:m.fromTech||(xferInfer(m)||{}).tech||'',techId:m.fromTechId||(xferInfer(m)||{}).techId||'',sec:m.fromSec||(xferInfer(m)||{}).sec||''}))} → to ${esc(techPlain(m))}</span></div>`:`<div class="actban take"><span class="ar">↑</span> Taking a tool <span class="sm2">${esc(techPlain(m))} · give it and accept</span></div>`)+
+      (m.idBy==='typed'?`<div class="alert warn" style="margin:0 0 9px;padding:9px 11px;font-size:12px"><b>ID was typed, not scanned</b> — check the man in front of you is really <b>${esc(techPlain(m))}</b>.</div>`:'');
+    if(m.status==='PENDING')ban=`<div class="actban ret"><span class="ar">↓</span> Returning a tool <span class="sm2">${esc(techPlain(m))} · check it and accept</span></div>`;
     const shortOut=(TAB==='out'||TAB==='due'||TAB==='overdue')&&m.status==='OUT';
     const open=String(K_OPEN)===String(m.id);
     if(shortOut){
       return `<div class="rec" style="cursor:pointer" onclick="kToggle('${m.id}')"><div class="hd"><span class="rid">${t[T_ID]}</span><span class="rname">${esc(t[T_NAME]||'(no name)')}</span>${b}${xferBadge(m)}</div>${unitLine(m)}
-      <div class="sub"><b class="tn">${esc(m.tech||'')}</b> · ${esc(m.sec||'')}</div>
+      <div class="sub">${techTag(m)}</div>
       <div class="sub" style="color:var(--ink2)">${open?'▾ Full details':'▸ Tap for full details'}${m.fromWasOverdue?' · <b style="color:var(--red)">was overdue at exchange</b>':''}</div>
       ${open?kDetail(m):''}
       ${open&&m.noPhone?`<div class="row2" onclick="event.stopPropagation()"><button class="btn green sm" onclick="npReturn('${m.id}')">Take back (no phone)</button></div>`:''}</div>`;
@@ -2072,7 +2091,7 @@ function rlist(){
           <div class="cr-top"><span class="cr-lab">Condition reported</span><span class="cr-grade">${m.cin} &mdash; ${GRADE_WORD[m.cin]||''}</span></div>
           <div class="cr-note"><span class="cr-nl">Technician's note</span>
             <p>${m.note?esc(m.note):'<i>No note was entered.</i>'}</p></div>
-          <div class="kv"><span class="k">Reported by</span><span class="v">${esc(m.tech)} &middot; ${esc(m.sec)}</span></div>
+          <div class="kv"><span class="k">Reported by</span><span class="v">${techTag(m)}</span></div>
           <div class="kv"><span class="k">Returned</span><span class="v">${fmtTime(m.ret)}</span></div>
           <div class="cr-foot">Inspect the tool before accepting it back.</div>
         </div>`:''}
@@ -2109,7 +2128,7 @@ function rdamaged(box){
       ${m.note?`<div class="alert ${g==='D'?'red':'warn'}" style="margin:8px 0 6px;text-align:left">
           <b>What the technician wrote</b><br>${esc(m.note)}</div>`:
         `<div class="sub" style="font-style:italic">No reason was typed</div>`}
-      <div class="kv"><span class="k">Reported by</span><span class="v">${esc(m.tech)} \u00b7 ${esc(m.sec)}</span></div>
+      <div class="kv"><span class="k">Reported by</span><span class="v">${techTag(m)}</span></div>
       <div class="kv"><span class="k">When</span><span class="v">${fmtTime(m.ret||m.out)}</span></div>
       ${m.inBy?`<div class="kv"><span class="k">Taken back by</span><span class="v">${esc(m.inBy)}</span></div>`:''}
       ${m.dmgFixed
@@ -2185,8 +2204,8 @@ function paintAll(box){
   box.innerHTML=list.map(t=>{
     const L=lm[t[T_ID]]||toolLive(t[T_ID]), m=L.m, d=openDmg[t[T_ID]];
     let who='';
-    if(L.ms&&L.ms.length&&(L.k==='part'||L.units)) who=L.ms.map(x=>`<div class="sub">${x.status==='REQ'?'Requested by':x.status==='PENDING'?'Coming back from':'With'} <b>${esc(x.tech)}</b> \u00b7 ${L.units?esc(x.sec):(x.full?'full set':esc(x.items||''))}${x.unit?' \u00b7 piece <b>'+x.unit+'</b>':''}${xferBadge(x)}</div>`).join('');
-    else if(m&&L.k!=='in') who=`<div class="sub">${L.k==='req'?'Requested by':L.k==='ret'?'Returned by':'With'} <b>${esc(m.tech)}</b> · ${esc(m.sec)}${m.out&&(L.k==='out'||L.k==='over')?' · '+ago(m.out)+' ago':''}${xferBadge(m)}</div>`;
+    if(L.ms&&L.ms.length&&(L.k==='part'||L.units)) who=L.ms.map(x=>`<div class="sub">${x.status==='REQ'?'Requested by':x.status==='PENDING'?'Coming back from':'With'} ${techTag(x)}${L.units?'':(x.full?' · full set':(x.items?' · '+esc(x.items):''))}${x.unit?' · piece <b>'+x.unit+'</b>':''}${xferBadge(x)}</div>`).join('');
+    else if(m&&L.k!=='in') who=`<div class="sub">${L.k==='req'?'Requested by':L.k==='ret'?'Returned by':'With'} ${techTag(m)}${m.out&&(L.k==='out'||L.k==='over')?' · '+ago(m.out)+' ago':''}${xferBadge(m)}</div>`;
     return `<div class="rec" style="border-left:4px solid ${L.k==='in'?'var(--green)':L.k==='over'?'var(--red)':L.k==='part'?'var(--brass)':'var(--amber)'};padding-left:10px">
       <div class="hd"><span class="rid">${esc(t[T_ID])}</span>
         <span class="rname">${esc(t[T_NAME]||'(no name)')}</span>
@@ -2276,7 +2295,16 @@ function rtechprofile(box){
    Two views: Today, and the last 7 days. The 7-day window moves by itself; NOTHING is deleted,
    the monthly report keeps every day. */
 let TT_RANGE='today';
-const techTag=m=>`<b class="tn">${esc(m.tech||'')}</b> · ${esc(m.sec||'')}${m.techId?' · ID '+esc(m.techId):''}`;
+const techParts=m=>{
+  if(!m) return {name:'',sec:'',id:''};
+  const id=String(m.techId||m.id||'').trim();
+  const t=id?findTech(id):null;
+  return {name:String(m.tech||m.name||(t?t[2]:'')||'').trim(),
+          sec:String(m.sec||(t?t[0]:'')||'').trim(),
+          id:id||String(t?t[1]:'').trim()};
+};
+const techPlain=m=>{ const p=techParts(m); let s=p.name||'—'; if(p.sec) s+=' · '+p.sec; if(p.id) s+=' · ID '+p.id; return s; };
+const techTag=m=>{ const p=techParts(m); let s=`<b class="tn">${esc(p.name||'—')}</b>`; if(p.sec) s+=` · ${esc(p.sec)}`; if(p.id) s+=` · ID ${esc(p.id)}`; return s; };
 const dayKey=iso=>{const d=new Date(iso);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
 function ttSince(range){const n=new Date();return new Date(n.getFullYear(),n.getMonth(),n.getDate()-(range==='week'?6:0)).getTime();}
 const ttIn=(iso,since)=>{ if(!iso) return false; const t=new Date(iso).getTime(); return t===t && t>=since; };
@@ -2409,7 +2437,7 @@ function rentries(box){
   const chips=`<div class="tabs" style="margin:2px 0 12px"><button class="tab ${EF==='today'?'on':''}" id="entToday" onclick="sef('today')">Today<span class="c">${LOG.filter(m=>m.kind==='ENTRY'&&isToday(m.at)).length}</span></button><button class="tab ${EF==='all'?'on':''}" id="entAll" onclick="sef('all')">All time<span class="c">${allN}</span></button></div>`;
   if(!recs.length){box.innerHTML=chips+`<div class="empty"><div class="big">🚪</div>No cabin entries${EF==='today'?' today':''}</div>`;return;}
   if(EF==='all') recs=recs.slice(0,300);
-  box.innerHTML=chips+recs.map(m=>`<div class="rec"><div class="hd"><span class="rname">${esc(m.tech)}</span><span class="badge" style="background:var(--bluebg);color:var(--blue)">Entered</span></div><div class="sub"><b class="tn">${esc(SEC_FULL[m.sec]||m.sec||'')}</b> · ID <b class="tn">${esc(m.techId)}</b> · ${m.noPhone?'no phone \u2014 entered by store keeper':'scanned cabin · '+(REP_HOW(m)||'')} ${fmtTime(m.at)}</div></div>`).join('')+`<div class="muted center" style="padding:10px">${recs.length} cabin entr${recs.length>1?'ies':'y'} today</div>`;
+  box.innerHTML=chips+recs.map(m=>`<div class="rec"><div class="hd"><span class="rname">${esc(techPlain(m))}</span><span class="badge" style="background:var(--bluebg);color:var(--blue)">Entered</span></div><div class="sub"><b class="tn">${esc(SEC_FULL[m.sec]||m.sec||'')}</b> · ID <b class="tn">${esc(m.techId)}</b> · ${m.noPhone?'no phone \u2014 entered by store keeper':'scanned cabin · '+(REP_HOW(m)||'')} ${fmtTime(m.at)}</div></div>`).join('')+`<div class="muted center" style="padding:10px">${recs.length} cabin entr${recs.length>1?'ies':'y'} today</div>`;
 }
 /* ================= MONTHLY REPORT ================= */
 const MONTH_NAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -3096,7 +3124,7 @@ function npReturn(id){
     <div class="actban ret"><span class="ar">&darr;</span> Taking a tool back <span class="sm2">no phone</span></div>
     <div class="card detail"><div class="tid">${t[T_ID]}</div>
       <div class="tname">${esc(t[T_NAME]||'(no name)')}</div>
-      <div class="meta">${esc(m.tech)} &middot; ${esc(m.sec)} &middot; out ${fmtTime(m.out)}</div>${unitLine(m)}</div>
+      <div class="meta">${esc(techPlain(m))} &middot; out ${fmtTime(m.out)}</div>${unitLine(m)}</div>
     <div class="card"><h3>Condition of the tool</h3>
       <div class="grades" id="npgrades">
         <button class="grade" data-g="A" onclick="npSg('A')">A<small>Good</small></button>
@@ -3183,7 +3211,7 @@ function cinPieces(mid){
   $('view').innerHTML=`<button class="back" onclick="dash()">\u2039 Back</button>
     <div class="actban ret"><span class="ar">\u2193</span> Taking a set back <span class="sm2">count before you accept</span></div>
     <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'')}</div><div class="meta">${meta(t)}</div></div>
-    <div class="card"><div class="kv"><span class="k">From</span><span class="v">${esc(m.tech)} \u00b7 ${esc(m.sec)}</span></div>
+    <div class="card"><div class="kv"><span class="k">From</span><span class="v">${techTag(m)}</span></div>
       <div class="kv"><span class="k">Took</span><span class="v">${esc(m.items||'')}</span></div>
       <div class="kv"><span class="k">Out since</span><span class="v">${fmtTime(m.out)}</span></div></div>
     <div class="card">${body}</div>`;
@@ -3752,7 +3780,7 @@ async function rej(id){ if(!requireKeeper())return;
    - only at a SAFE moment: first screen, technician choice / blocked / cabin-scan screen, store keeper PIN
    screen or dashboard, or while the page is in the background. Never in the middle of taking or returning
    tools, never while typing. A store keeper must type his PIN again after an update. */
-const APP_BUILD=3314;      /* bigger number = newer upload — v3314 return QR required + ABCD + same-location ask */
+const APP_BUILD=3315;      /* bigger number = newer upload — v3315 same-loc ask 3+ only; name·sec·ID; full profile header */
 let AU_NEW=0, AU_BUSY=false;
 function auSafe(){
   const a=document.activeElement; if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
