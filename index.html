@@ -144,6 +144,7 @@ textarea.big:focus{outline:none;border-color:var(--slate);box-shadow:0 0 0 3px r
 .badge.out{background:var(--redbg);color:var(--red);border:1px solid #F2DCD8}
 .badge.instore{background:var(--greenbg);color:var(--green);border:1px solid #D8E7E0}
 .badge.pend{background:var(--amberbg);color:var(--amber);border:1px solid #EFE2C6}
+.badge.xfer{background:#EEF2FF;color:#2F3F8F;border:1px solid #D5DCF5;letter-spacing:.06em}
 
 /* ---------- detail ---------- */
 .detail .tid{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--ink2);letter-spacing:.06em}
@@ -938,12 +939,16 @@ function confirmSelf(t){
 /* v31: the store keeper sees the full story on every tool line */
 function kDetail(m){
   if(!m||m.kind!=='TOOL') return '';
+  const prev=m.fromId?LOG.find(x=>String(x.id)===String(m.fromId)):null;
+  const xfer=xferIsH2H(m);
   return `<div class="rp-who" style="margin-top:6px">
     ${m.req?`<div><span>Requested</span>${fmtTime(m.req)}</div>`:''}
-    ${m.fromTech?`<div><span>Hand to hand</span>from <b>${esc(m.fromTech)}</b></div>`:''}
-    <div><span>Given by</span>${m.out?(m.outBy?'<b>'+esc(m.outBy)+'</b> · ':'')+fmtTime(m.out):'not given yet'}</div>
-    ${m.out?`<div><span>Returned</span>${m.ret?fmtTime(m.ret):'<b>not yet</b> · out '+ago(m.out)}</div>`:''}
-    ${m.out?`<div><span>Taken back by</span>${m.status==='IN'?(m.passedTo?'— passed to <b>'+esc(m.passedTo)+'</b> · '+fmtTime(m.passedAt||m.recvAt):'<b>'+esc(m.inBy||'store keeper')+'</b> · '+fmtTime(m.recvAt||m.ret)):m.status==='PENDING'?'<b style="color:var(--amber)">waiting — check and accept</b>':'—'}</div>`:''}
+    ${xfer?`<div><span>Hand to hand</span>from <b>${esc(m.fromTech||'another technician')}</b>${m.fromWasOverdue?' · <b style="color:var(--red)">was OVERDUE</b>':''}</div>`:''}
+    ${xfer&&prev&&prev.out?`<div><span>Previous took</span>${fmtTime(prev.out)} · ${ago(prev.out)} before exchange</div>`:''}
+    ${xfer&&m.out?`<div><span>Exchange accepted</span>${m.outBy?'<b>'+esc(m.outBy)+'</b> · ':''}${fmtTime(m.out)}</div>`:''}
+    <div><span>${xfer?'Now with':'Given by'}</span>${xfer?('<b>'+esc(m.tech)+'</b>'+(m.out?' · since '+fmtTime(m.out):'')):(m.out?(m.outBy?'<b>'+esc(m.outBy)+'</b> · ':'')+fmtTime(m.out):'not given yet')}</div>
+    ${!xfer&&m.out?`<div><span>Returned</span>${m.ret?fmtTime(m.ret):'<b>not yet</b> · out '+ago(m.out)}</div>`:''}
+    ${m.out?`<div><span>Taken back by</span>${m.status==='IN'?(m.passedTo?'— passed to <b>'+esc(m.passedTo)+'</b> · '+fmtTime(m.passedAt||m.recvAt):'<b>'+esc(m.inBy||'store keeper')+'</b> · '+fmtTime(m.recvAt||m.ret)):m.status==='PENDING'?'<b style="color:var(--amber)">waiting — check and accept</b>':(xfer?'— still with him':'—')}</div>`:''}
     ${REP_HOW(m)?`<div><span>How he came</span>${REP_HOW(m)}</div>`:''}</div>`;
 }
 function acceptBatch(batch){ if(!requireKeeper())return;
@@ -1359,7 +1364,7 @@ function xferAsk(mid){
   if(String(m.techId)===String(ME.id)){ openTool(m.tid); return; }
   { const od=overdueHeld(ME.id); if(od.length){ overdueBlock(od); return; } }
   TV='input';
-  const t=toolOr(m.tid);
+  const t=toolOr(m.tid), holdOd=isOverdue(m);
   setTitle('Take from technician',mvTag(m));
   $('view').innerHTML=`<button class="back" onclick="openTool('${esc(m.tid)}'${m.unit?`,'${m.unit}'`:''})">‹ Back</button>
     <div class="actban take"><span class="ar">⇄</span> HAND TO HAND</div>
@@ -1367,19 +1372,34 @@ function xferAsk(mid){
     <div class="card"><div class="kv"><span class="k">Now with</span><span class="v">${esc(m.tech)} · ${esc(m.sec)}</span></div>
       <div class="kv"><span class="k">Goes to</span><span class="v"><b>${esc(ME.name)}</b> · ${esc(ME.sec)}</span></div>
       ${m.items?`<div class="kv"><span class="k">Pieces</span><span class="v">${esc(m.items)}</span></div>`:''}</div>
+    ${holdOd?`<div class="alert red"><b>⚠ This tool is already OVERDUE</b> with ${esc(m.tech)}.<br>Finish your work and return it on time for handover. Do not keep it longer.</div>`:''}
     <div class="alert warn"><b>${esc(String(m.tech).split(' ')[0])} must give you the tool.</b><br>The store keeper confirms. Then the tool is in <b>your</b> name.</div>
-    <button class="btn green" id="btnXfer" onclick="xferSend('${m.id}')">Send to store keeper</button>`;
+    <button class="btn green" id="btnXfer" onclick="xferSend('${m.id}',${holdOd?1:0})">${holdOd?'I understand — send request':'Send to store keeper'}</button>`;
 }
-function xferSend(mid){
+function xferSend(mid,ackOd){
   const m=LOG.find(x=>x.id===mid);
   if(!m||m.status!=='OUT'){ toast('This tool is not out any more'); techToolList(); return; }
   { const od=overdueHeld(ME.id); if(od.length){ toast('Return your overdue tool first'); overdueBlock(od); return; } }
-  if(LOG.some(x=>x.kind==='TOOL'&&x.status==='REQ'&&x.fromId===mid)){ toast('Already asked — waiting for the store keeper'); techToolList(); return; }
+  if(isOverdue(m)&&!ackOd){ toast('This tool is overdue — read the warning first'); xferAsk(mid); return; }
+  if(LOG.some(x=>x.kind==='TOOL'&&x.status==='REQ'&&String(x.fromId)===String(mid))){ toast('Already asked — waiting for the store keeper'); techToolList(); return; }
   window.DB.add({kind:'TOOL',tid:m.tid,unit:m.unit||null,tech:ME.name,techId:ME.id,sec:ME.sec,idBy:ID_METHOD,req:new Date().toISOString(),out:null,ret:null,cin:null,note:'',
-    items:m.items||'',full:!!m.full,pcs:m.pcs||0,status:'REQ',fromId:m.id,fromTech:m.tech,fromTechId:m.techId}).catch(saveErr);
+    items:m.items||'',full:!!m.full,pcs:m.pcs||0,status:'REQ',fromId:String(m.id),fromTech:m.tech,fromTechId:m.techId,fromWasOverdue:!!isOverdue(m)}).catch(saveErr);
   toast('Sent to store keeper — from '+String(m.tech).split(' ')[0]); techToolList();
 }
-function xferFrom(m){ return m&&m.fromId?LOG.find(x=>x.id===m.fromId):null; }
+/* ===== v3311/3312 H2H: find holder OUT by fromId (String) or tid+fromTechId(+unit) ===== */
+function xferIsH2H(m){ return !!(m&&(m.fromId||m.fromTechId||m.fromTech)); }
+function xferSource(m){
+  if(!m) return null;
+  if(m.fromId){ const byId=LOG.find(x=>x.kind==='TOOL'&&String(x.id)===String(m.fromId)); if(byId&&byId.status==='OUT') return byId; }
+  const tid=m.tid, uid=m.fromTechId, uname=m.fromTech, unit=m.unit||null;
+  return LOG.find(x=>x.kind==='TOOL'&&x.status==='OUT'&&x.tid===tid
+    &&(!unit||x.unit===unit)
+    &&((uid!=null&&uid!==''&&String(x.techId)===String(uid))||(!!uname&&String(x.tech)===String(uname))))||null;
+}
+function xferFrom(m){ return xferSource(m); }
+function xferBadge(m){ return xferIsH2H(m)?`<span class="badge xfer">⇄ Exchange</span>`:''; }
+let K_OPEN=null;
+function kToggle(id){ const s=String(id); K_OPEN=(K_OPEN===s?null:s); if($('list')) rlist(); else dash(); }
 function pendingScreen(tid,m){
   TV='status';TVSIG=tvSig(tid);
   const t=toolOr(tid);setTitle('Tool returning',t[T_ID]);
@@ -1970,10 +1990,19 @@ function rlist(){
     const dmg=m.status==='PENDING'&&m.cin&&m.cin!=='A';
     const when=m.status==='REQ'?`requested ${fmtTime(m.req)} · ${ago(m.req)} ago`:`out ${fmtTime(m.out)}${m.status==='OUT'?' · '+ago(m.out)+' ago':''}`;
     let ban='';
-    if(m.status==='REQ')ban=(m.fromId?`<div class="actban take"><span class="ar">⇄</span> Hand to hand <span class="sm2">from ${esc(m.fromTech||'')} → to ${esc(m.tech)}</span></div>`:`<div class="actban take"><span class="ar">↑</span> Taking a tool <span class="sm2">give it and accept</span></div>`)+
+    if(m.status==='REQ')ban=((m.fromId||m.fromTechId||m.fromTech)?`<div class="actban take"><span class="ar">⇄</span> Hand to hand <span class="sm2">from ${esc(m.fromTech||'')} → to ${esc(m.tech)}</span></div>`:`<div class="actban take"><span class="ar">↑</span> Taking a tool <span class="sm2">give it and accept</span></div>`)+
       (m.idBy==='typed'?`<div class="alert warn" style="margin:0 0 9px;padding:9px 11px;font-size:12px"><b>ID was typed, not scanned</b> — check the man in front of you is really <b>${esc(m.tech)}</b>.</div>`:'');
     if(m.status==='PENDING')ban=`<div class="actban ret"><span class="ar">↓</span> Returning a tool <span class="sm2">check it and accept</span></div>`;
-    return `<div class="rec">${ban}<div class="hd"><span class="rid">${t[T_ID]}</span><span class="rname">${esc(t[T_NAME]||'(no name)')}</span>${b}</div>${unitLine(m)}
+    const shortOut=(TAB==='out'||TAB==='due'||TAB==='overdue')&&m.status==='OUT';
+    const open=String(K_OPEN)===String(m.id);
+    if(shortOut){
+      return `<div class="rec" style="cursor:pointer" onclick="kToggle('${m.id}')"><div class="hd"><span class="rid">${t[T_ID]}</span><span class="rname">${esc(t[T_NAME]||'(no name)')}</span>${b}${xferBadge(m)}</div>${unitLine(m)}
+      <div class="sub"><b class="tn">${esc(m.tech||'')}</b> · ${esc(m.sec||'')}</div>
+      <div class="sub" style="color:var(--ink2)">${open?'▾ Full details':'▸ Tap for full details'}${m.fromWasOverdue?' · <b style="color:var(--red)">was overdue at exchange</b>':''}</div>
+      ${open?kDetail(m):''}
+      ${open&&m.noPhone?`<div class="row2" onclick="event.stopPropagation()"><button class="btn green sm" onclick="npReturn('${m.id}')">Take back (no phone)</button></div>`:''}</div>`;
+    }
+    return `<div class="rec">${ban}<div class="hd"><span class="rid">${t[T_ID]}</span><span class="rname">${esc(t[T_NAME]||'(no name)')}</span>${b}${m.status==='REQ'?xferBadge(m):''}</div>${unitLine(m)}
       <div class="sub" style="font-weight:700;color:var(--ink)">${meta(t)}</div>
       <div class="sub">${techTag(m)} · ${when}</div>
       ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}
@@ -1988,7 +2017,7 @@ function rlist(){
           <div class="cr-foot">Inspect the tool before accepting it back.</div>
         </div>`:''}
       ${m.noPhone?`<div class="sub" style="color:var(--red);font-weight:700">NO PHONE — issued manually by ${esc(m.outBy||'store keeper')}</div>`:''}
-      ${kDetail(m)}
+      ${m.status==='REQ'?kDetail(m):''}
       ${m.status==='OUT'&&m.noPhone?`<div class="row2"><button class="btn green sm" onclick="npReturn('${m.id}')">Take back (no phone)</button></div>`:''}
       ${m.status==='REQ'&&dmgOf(m.tid)?`<div class="alert red" style="margin:8px 0 0"><b>Open damage report on this tool${dmgOf(m.tid).unit?' (piece '+dmgOf(m.tid).unit+')':''}</b> \u2014 ${esc(GRADE_WORD[dmgOf(m.tid).cin]||'')}${dmgOf(m.tid).note?': '+esc(dmgOf(m.tid).note):''}</div>`:''}
       ${m.status==='REQ'&&reqBlock(m)?`<div class="alert red" style="margin:8px 0 0"><b>${esc(reqBlock(m))}</b></div>`:''}
@@ -2096,12 +2125,12 @@ function paintAll(box){
   box.innerHTML=list.map(t=>{
     const L=lm[t[T_ID]]||toolLive(t[T_ID]), m=L.m, d=openDmg[t[T_ID]];
     let who='';
-    if(L.ms&&L.ms.length&&(L.k==='part'||L.units)) who=L.ms.map(x=>`<div class="sub">${x.status==='REQ'?'Requested by':x.status==='PENDING'?'Coming back from':'With'} <b>${esc(x.tech)}</b> \u00b7 ${L.units?esc(x.sec):(x.full?'full set':esc(x.items||''))}${x.unit?' \u00b7 piece <b>'+x.unit+'</b>':''}</div>`).join('');
-    else if(m&&L.k!=='in') who=`<div class="sub">${L.k==='req'?'Requested by':L.k==='ret'?'Returned by':'With'} <b>${esc(m.tech)}</b> \u00b7 ${esc(m.sec)}${m.out&&(L.k==='out'||L.k==='over')?' \u00b7 '+ago(m.out)+' ago':''}</div>`;
+    if(L.ms&&L.ms.length&&(L.k==='part'||L.units)) who=L.ms.map(x=>`<div class="sub">${x.status==='REQ'?'Requested by':x.status==='PENDING'?'Coming back from':'With'} <b>${esc(x.tech)}</b> \u00b7 ${L.units?esc(x.sec):(x.full?'full set':esc(x.items||''))}${x.unit?' \u00b7 piece <b>'+x.unit+'</b>':''}${xferBadge(x)}</div>`).join('');
+    else if(m&&L.k!=='in') who=`<div class="sub">${L.k==='req'?'Requested by':L.k==='ret'?'Returned by':'With'} <b>${esc(m.tech)}</b> · ${esc(m.sec)}${m.out&&(L.k==='out'||L.k==='over')?' · '+ago(m.out)+' ago':''}${xferBadge(m)}</div>`;
     return `<div class="rec" style="border-left:4px solid ${L.k==='in'?'var(--green)':L.k==='over'?'var(--red)':L.k==='part'?'var(--brass)':'var(--amber)'};padding-left:10px">
       <div class="hd"><span class="rid">${esc(t[T_ID])}</span>
         <span class="rname">${esc(t[T_NAME]||'(no name)')}</span>
-        <span class="badge ${L.cls}">${L.label}</span>${isManual(t[T_ID])?'<span class="badge pend">Hand typed</span>':''}</div>
+        <span class="badge ${L.cls}">${L.label}</span>${isManual(t[T_ID])?'<span class="badge pend">Hand typed</span>':''}${m?xferBadge(m):''}</div>
       <div class="sub" style="font-weight:700;color:var(--ink)">${meta(t)}</div>
       ${who}
       ${d?`<div class="sub" style="color:var(--red);font-weight:700">DAMAGED \u00b7 ${GRADE_WORD[d.cin]||d.cin}${d.note?' \u2014 '+esc(d.note):''}</div>`:''}
@@ -2119,7 +2148,7 @@ function histRow(m){const t=toolById(m.tid)||[m.tid,'','?'];let s,col;
     if(m.status==='REQ'){s='Requested · waiting';col='var(--amber)';}else if(m.status==='OUT'){s=isOverdue(m)?'Out · overdue':'Out';col='var(--red)';}else if(m.status==='PENDING'){s='Returned · waiting';col='var(--amber)';}else{s='Returned · received';col='var(--green)';}
     return `<div class="rec"><div class="hd"><span class="rid">${esc(m.tid)}</span><span class="rname">${esc(t[T_NAME]||'')}</span><span class="badge" style="background:#eef1f5;color:${col}">${s}</span></div>${unitLine(m)}
       <div class="sub">${techTag(m)}</div>
-      ${kDetail(m)}
+      ${xferBadge(m)}${xferIsH2H(m)?`<div class="sub">⇄ Exchange from <b>${esc(m.fromTech||'')}</b>${m.fromWasOverdue?' · was OVERDUE':''}</div>`:''}
       <div class="sub">${m.status==='REQ'?'Requested '+fmtTime(m.req):'OUT '+fmtTime(m.out)+(m.ret?' → IN '+fmtTime(m.recvAt||m.ret):'')}${m.cin?' · '+gradeBadge(m.cin):''}</div>
       ${m.rejBy&&m.rejAt?`<div class="sub">A return was sent back by <b>${esc(m.rejBy)}</b>${m.rejCin?' · he had reported <b>'+m.rejCin+'</b>'+(m.rejNote?': '+esc(m.rejNote):''):''}</div>`:''}
       ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}${m.missPcs?`<div class="sub" style="color:var(--red);font-weight:800">NOT RETURNED: ${esc(m.missPcs)}</div>`:''}${m.note?`<div class="sub">Note: ${esc(m.note)}</div>`:''}</div>`;
@@ -2384,10 +2413,10 @@ function monthData(key){
       const lateFrom=repT(m.out)+OVERDUE_H*3.6e6, lateTo=m.ret?repT(m.ret):Date.now();
       if(lateFrom<ME&&lateTo>MS){                      /* he was late with this tool during this month */
         const at=new Date(Math.max(lateFrom,MS)).toISOString();
-        if(m.ret&&repInMonth(m.ret,key)) ev('LATE',m,m.ret,'Returned '+repH1(L.over)+' late - held '+repH1(L.held),{over:L.over,held:L.held,pts:REP_PTS.LATE+Math.min(4,Math.floor(L.over/24))});
-        else if(!m.ret&&isNow) ev('OVERDUE',m,at,'Still with him - held '+repH1(L.held)+' ('+repH1(L.over)+' past the '+LIMIT_TXT+' limit)',{over:L.over,held:L.held,pts:REP_PTS.OVERDUE+Math.min(7,Math.floor(L.over/24))});
+        if(m.ret&&repInMonth(m.ret,key)) ev('LATE',m,m.ret,'Returned '+repH1(L.over)+' late - held '+repH1(L.held)+(xferIsH2H(m)?' · EXCHANGE from '+(m.fromTech||'another tech')+(m.fromWasOverdue?' (was OVERDUE)':''):''),{over:L.over,held:L.held,pts:REP_PTS.LATE+Math.min(4,Math.floor(L.over/24))});
+        else if(!m.ret&&isNow) ev('OVERDUE',m,at,'Still with him - held '+repH1(L.held)+' ('+repH1(L.over)+' past the '+LIMIT_TXT+' limit)'+(xferIsH2H(m)?' · EXCHANGE from '+(m.fromTech||'another tech')+(m.fromWasOverdue?' (was OVERDUE)':''):''),{over:L.over,held:L.held,pts:REP_PTS.OVERDUE+Math.min(7,Math.floor(L.over/24))});
         else { const endM=Math.min(lateTo,ME), overM=repHrs(endM-lateFrom);
-          ev('OVERDUE',m,at,'Overdue in this month (taken '+fmtTime(m.out)+') - '+(m.ret?'returned '+fmtTime(m.ret):'STILL with him'),{over:overM,held:repHrs(endM-repT(m.out)),pts:REP_PTS.OVERDUE+Math.min(7,Math.floor(overM/24))}); }
+          ev('OVERDUE',m,at,'Overdue in this month (taken '+fmtTime(m.out)+') - '+(m.ret?'returned '+fmtTime(m.ret):'STILL with him')+(xferIsH2H(m)?' · EXCHANGE from '+(m.fromTech||'another tech')+(m.fromWasOverdue?' (was OVERDUE)':''):''),{over:overM,held:repHrs(endM-repT(m.out)),pts:REP_PTS.OVERDUE+Math.min(7,Math.floor(overM/24))}); }
       }
     }
     if(m.cin&&m.cin!=='A'&&repInMonth(m.ret||m.out,key)){
@@ -2470,7 +2499,7 @@ function repWho(m){
   if(!m||m.kind==='ENTRY') return m&&m.kind==='ENTRY'?`<div class="rp-who"><div><span>Cabin entry</span>${fmtTime(m.at)}${m.keeper?' · by <b>'+esc(m.keeper)+'</b>':''}</div>${REP_HOW(m)?`<div><span>How he came</span>${REP_HOW(m)}</div>`:''}</div>`:'';
   const held=m.out?repHrs((m.ret?repT(m.ret):Date.now())-repT(m.out)):0;
   return `<div class="rp-who">
-    ${m.fromTech?`<div><span>Hand to hand</span>from <b>${esc(m.fromTech)}</b></div>`:''}
+    ${xferIsH2H(m)?`<div><span>Hand to hand</span>from <b>${esc(m.fromTech||'another technician')}</b>${m.fromWasOverdue?' · <b style="color:var(--red)">was OVERDUE</b>':''}${xferBadge(m)}</div>`:''}
     <div><span>Given by</span>${m.outBy?'<b>'+esc(m.outBy)+'</b> · ':''}${m.out?fmtTime(m.out):'not given yet'}</div>
     ${m.passedTo?`<div><span>Passed to</span><b>${esc(m.passedTo)}</b> (hand to hand) · ${fmtTime(m.passedAt||m.ret)}</div>`:''}
     <div><span>Returned</span>${m.ret?fmtTime(m.ret)+(m.out?' · held '+repH1(held):''):'<b style="color:var(--red)">not yet</b>'+(m.out?' · out '+repH1(held):'')}</div>
@@ -2482,7 +2511,7 @@ function repEventRow(e,key,showTech){
   const col=e.pts>=3?'var(--red)':e.pts>=2?'var(--amber)':'var(--blue)';
   const m=LOG.find(x=>x.id===e.mid);
   return `<div class="rec rp-ev" style="border-left:4px solid ${col}">
-    <div class="hd"><span class="badge ${e.pts>=3?'out':e.pts>=2?'pend':'blue'}">${esc(REP_WORD[e.type]||e.type)}</span><span class="rp-when">${fmtTime(e.at)}</span></div>
+    <div class="hd"><span class="badge ${e.pts>=3?'out':e.pts>=2?'pend':'blue'}">${esc(REP_WORD[e.type]||e.type)}</span>${(function(){const mm=LOG.find(x=>x.id===e.mid);return mm?xferBadge(mm):'';})()}<span class="rp-when">${fmtTime(e.at)}</span></div>
     ${showTech?`<div class="sub rp-link" onclick="repTech('${key}','${repQ(repKeyOf(e))}')"><b class="tn">${esc(e.tech)}</b> · ${esc(e.sec)}${e.techId?' · ID '+esc(e.techId):''} ›</div>`:''}
     ${e.tid?`<div class="sub rp-link" onclick="repTool('${key}','${repQ(e.tid)}')">Tool <b>${repTag(e)}</b> ${esc(repToolName(e.tid))} ›</div>`:''}
     <div class="sub">${esc(e.text)}${e.keeper?' · store keeper <b>'+esc(e.keeper)+'</b>':''}</div>${repWho(m)}</div>`;
@@ -3037,9 +3066,10 @@ function switchKeeper(){ KEEPER=null; curStoreView=null; pinScreen(); }
 /* the store keeper's last check before a tool leaves: is it really free? */
 function reqBlock(m){
   { const tb=keeperBlockFor(m.techId); if(tb) return tb; }
-  if(m.fromId){ const f=xferFrom(m); return (f&&f.status==='OUT')?'':'The tool is not with '+(m.fromTech||'the other technician')+' any more — decline this request'; }
+  if(xferIsH2H(m)){                                  /* v3311: H2H — allow when holder still has it; never "Already out with" */
+    return xferSource(m)?'':'The tool is not with '+(m.fromTech||'the other technician')+' any more — decline this request'; }
   const N=pcNof(m.tid);
-  const others=LOG.filter(x=>x.kind==='TOOL'&&x.tid===m.tid&&x.id!==m.id&&x.id!==m.fromId&&(x.status==='OUT'||x.status==='PENDING'));
+  const others=LOG.filter(x=>x.kind==='TOOL'&&x.tid===m.tid&&x.id!==m.id&&String(x.id)!==String(m.fromId||'')&&(x.status==='OUT'||x.status==='PENDING'));
   if(!N){ const U=unitsOf(m.tid);
     if(others.length>=U) return U>1?('All '+U+' are already out \u2014 decline this request'):('Already out with '+others[0].tech+' \u2014 decline this request');
     if(m.unit){ const h=others.find(x=>x.unit===m.unit); if(h) return 'Piece '+m.unit+' is already out with '+h.tech+' \u2014 decline this request'; }
@@ -3051,8 +3081,12 @@ function reqBlock(m){
 async function reqOk(id){ if(!requireKeeper())return;
   const m=LOG.find(x=>x.id===id); if(!m||m.status!=='REQ'){toast('Already handled');return;}
   const why=reqBlock(m); if(why){toast(why);return;}
-  if(m.fromId){ const f=xferFrom(m), now=new Date().toISOString();     /* hand to hand: close the old man's record first */
-    window.DB.update(f.id,{status:'IN',ret:now,recvAt:now,inBy:KEEPER.short,inById:KEEPER.id,inByName:KEEPER.name,passedTo:m.tech,passedToId:m.techId,passedAt:now}).catch(saveErr); }
+  if(xferIsH2H(m)){ const f=xferSource(m), now=new Date().toISOString();   /* v3311/3312 hand to hand */
+    if(!f){ toast('The tool is not with '+(m.fromTech||'the other technician')+' any more — decline this request'); return; }
+    const wasOd=!!(m.fromWasOverdue||isOverdue(f));
+    window.DB.update(f.id,{status:'IN',ret:now,recvAt:now,inBy:KEEPER.short,inById:KEEPER.id,inByName:KEEPER.name,passedTo:m.tech,passedToId:m.techId,passedAt:now}).catch(saveErr);
+    window.DB.update(id,{status:'OUT',out:now,outBy:KEEPER.short,outById:KEEPER.id,outByName:KEEPER.name,fromWasOverdue:wasOd}).catch(saveErr);
+    toast('Exchange done — now with '+String(m.tech).split(' ')[0]); return; }
   window.DB.update(id,{status:'OUT',out:new Date().toISOString(),
     outBy:KEEPER.short,outById:KEEPER.id,outByName:KEEPER.name}).catch(saveErr);
   toast('Handed over by '+KEEPER.short); }
@@ -3657,7 +3691,7 @@ async function rej(id){ if(!requireKeeper())return;
    - only at a SAFE moment: first screen, technician choice / blocked / cabin-scan screen, store keeper PIN
    screen or dashboard, or while the page is in the background. Never in the middle of taking or returning
    tools, never while typing. A store keeper must type his PIN again after an update. */
-const APP_BUILD=3310;      /* bigger number = newer upload */
+const APP_BUILD=3312;      /* bigger number = newer upload — v3312 H2H accept + exchange badge + overdue warn */
 let AU_NEW=0, AU_BUSY=false;
 function auSafe(){
   const a=document.activeElement; if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
