@@ -954,8 +954,13 @@ function kDetail(m){
     ${REP_HOW(m)?`<div><span>How he came</span>${REP_HOW(m)}</div>`:''}</div>`;
 }
 function acceptBatch(batch){ if(!requireKeeper())return;
-  const L=LOG.filter(m=>m.kind==='TOOL'&&m.status==='PENDING'&&m.retBatch===batch&&!pcNof(m.tid));
-  if(!L.length){ toast('Already handled'); return; }
+  /* v3319: only multi-tool same-tech return batches */
+  const all=LOG.filter(m=>m.kind==='TOOL'&&m.status==='PENDING'&&m.retBatch===batch);
+  if(all.length<2){ toast('Accept all is only for 2+ tools from the same technician'); return; }
+  const tid0=all[0].techId;
+  if(!all.every(m=>sameTech(m.techId,tid0))){ toast('Mixed technicians — accept one by one'); return; }
+  const L=all.filter(m=>!pcNof(m.tid));
+  if(!L.length){ toast('Sets with pieces — accept each below'); return; }
   const now=new Date().toISOString();
   L.forEach(m=>window.DB.update(m.id,{status:'IN',recvAt:now,ret:m.ret||now,inBy:KEEPER.short,inById:KEEPER.id,inByName:KEEPER.name}).catch(saveErr));
   toast(L.length+' tool'+(L.length>1?'s':'')+' received by '+KEEPER.short);
@@ -1079,12 +1084,14 @@ function techStart(){
   setTitle('Take or return?','You hold '+out.length+' tool'+(out.length>1?'s':''));
   $('view').innerHTML=`
     ${meCard('TOOLS WITH YOU')}
-    <div class="card" style="padding:6px 14px"><h3 style="margin:12px 4px 4px">Tools with you (${out.length})</h3>${heldRows(out)}</div>
+    <div class="card" style="padding:6px 14px"><h3 style="margin:12px 4px 4px">Tools with you (${out.length})</h3>
+      <div class="muted" style="padding:0 4px 6px;font-size:12px">Tap a tool to return it · or press RETURN TOOLS to scan many</div>
+      ${heldRows(out,'openMineTool')}</div>
     ${od.length?`<div class="alert red"><b>Overdue: ${esc(od.map(mvTag).join(', '))}</b><br>Kept more than ${LIMIT_TXT}. Return it first — then you can take new tools.</div>`:''}
     ${out.filter(isDueSoon).map(m=>`<div class="alert warn" id="dueWarn"><b>⚠ Return soon: ${esc(mvTag(m))} ${esc(toolOr(m.tid)[T_NAME]||'')}</b><br>Taken ${fmtTime(m.out)} · with you ${ago(m.out)} · <b>${leftTxt(m)}</b> to return it. After ${LIMIT_TXT} you cannot take new tools.</div>`).join('')}
     <button class="btn choice take" id="btnTake" onclick="techTake()">TAKE TOOLS<small>${od.length?'Blocked — return the overdue tool first':'Scan the cabin QR'}</small></button>
-    ${RET_BASKET.length?`<div class="alert warn" id="basketWarn"><b>${RET_BASKET.length} tool${RET_BASKET.length>1?'s':''} scanned but NOT sent yet.</b> <span class="rp-link" style="text-decoration:underline" onclick="retFinishGate()">Finish return ›</span></div>`:''}
-    <button class="btn choice ret" id="btnRet" onclick="retCam()">RETURN TOOLS<small>Scan the tool — no cabin scan</small></button>`;
+    ${RET_BASKET.length?`<div class="alert warn" id="basketWarn"><b>${RET_BASKET.length} tool${RET_BASKET.length>1?'s':''} in return list — not sent yet.</b> <span class="rp-link" style="text-decoration:underline" onclick="retFinishGate()">Finish return ›</span></div>`:''}
+    <button class="btn choice ret" id="btnRet" onclick="retCam()">RETURN TOOLS<small>Scan QR (or tap a tool above) · no cabin scan</small></button>`;
 }
 function techTake(){ const od=overdueHeld(ME.id); if(od.length){ overdueBlock(od); return; } techGate(); }
 function overdueBlock(od){
@@ -1102,8 +1109,8 @@ function overdueBlock(od){
 let RET_BUSY=false, RET_BASKET=[], RP_FROM='add';
 const retLeft=()=>heldOut(ME.id).filter(m=>!RET_BASKET.some(b=>b.id===m.id));
 const retLoc=tid=>{ const t=toolOr(tid); return t[T_LOC]||''; };
-/* Same-location Yes/No only when tech holds 3+ tools (or basket has 3+). 1–2 tools: scan + grade + send. */
-const needsSameLocAsk=()=>heldOut(ME.id).length>=3 || RET_BASKET.length>=3;
+/* Same-location Yes/No only when THIS return basket has 3+ tools. 1–2 in the batch: send straight away. */
+const needsSameLocAsk=()=>RET_BASKET.length>=3;
 function retCam(){
   GATE=false;
   RET_BASKET=RET_BASKET.filter(b=>{ const m=LOG.find(x=>x.id===b.id); return m&&m.status==='OUT'&&sameTech(m.techId,ME.id); });
@@ -1113,45 +1120,47 @@ function retCam(){
   const mans=out.filter(m=>isManual(m.tid));
   const cats=out.filter(m=>!isManual(m.tid));
   TV='retcam'; RET_BUSY=false;
-  /* Only hand-typed left: no camera — pick by name. */
+  const doneBan=RET_BASKET.length?`<div class="alert green" style="margin-bottom:10px"><b>${RET_BASKET.length} in return list:</b> ${esc(RET_BASKET.map(b=>mvTag(LOG.find(x=>x.id===b.id)||{tid:'?'})).join(', '))}</div>`:'';
+  const finishBtn=RET_BASKET.length?`<button class="btn green" id="btnFinish" onclick="retFinishGate()">Finish return (${RET_BASKET.length})</button>`:'';
+  /* row helper: tap opens single-tool return (catalog=cam+ABCD, MT=name+ABCD) */
+  const row=(m,hint)=>{ const t=toolOr(m.tid);
+    return `<div class="toolrow" onclick="retOpenOne('${m.id}')"><div class="id">${esc(mvTag(m))}</div>
+      <div class="nm">${esc(t[T_NAME]||'(no name)')}${isManual(m.tid)?' <span class="badge pend">Hand typed</span>':''}<small>${hint}</small></div><div class="go">›</div></div>`; };
+  /* Only hand-typed left: no camera */
   if(!cats.length){
     stopScanner();
     setTitle('Return typed tools','No QR — confirm by name');
     $('view').innerHTML=`<button class="back" onclick="techStart()">‹ Back</button>
       <div class="actban ret"><span class="ar">↓</span> HAND-TYPED RETURN — no QR</div>
-      ${RET_BASKET.length?`<div class="alert green" style="margin-bottom:10px"><b>${RET_BASKET.length} already in return list</b></div>`:''}
-      <div class="alert info"><b>These tools were typed by hand.</b><br>Tap one, confirm the name, select A–D, then send to the store keeper.</div>
-      <div class="card" style="padding:6px 14px"><h3 style="margin:12px 4px 4px">Typed tools with you</h3>
-        ${mans.map(m=>{ const t=toolOr(m.tid);
-          return `<div class="toolrow" onclick="returnManualFromCam('${m.id}')"><div class="id">${esc(mvTag(m))}</div>
-            <div class="nm">${esc(t[T_NAME]||'(no name)')} <span class="badge pend">Hand typed</span><small>Tap to return · no QR</small></div><div class="go">›</div></div>`; }).join('')}
-      </div>
-      ${RET_BASKET.length?`<button class="btn green" id="btnFinish" onclick="retFinishGate()">Finish return (${RET_BASKET.length})</button>`:''}`;
+      ${doneBan}
+      <div class="alert info"><b>Tap a tool</b> · confirm name · A–D · then Finish.</div>
+      <div class="card" style="padding:6px 14px"><h3 style="margin:12px 4px 4px">Still to return (${mans.length})</h3>
+        ${mans.map(m=>row(m,'Tap · no QR')).join('')}</div>
+      ${finishBtn}`;
     return;
   }
-  setTitle('Return tools','Scan the tool QR — required');
-  const manBlock = mans.length ? `<div class="card" style="padding:6px 14px;margin-bottom:10px"><h3 style="margin:12px 4px 4px">Hand-typed (no QR)</h3>
-      ${mans.map(m=>{ const t=toolOr(m.tid);
-        return `<div class="toolrow" onclick="returnManualFromCam('${m.id}')"><div class="id">${esc(mvTag(m))}</div>
-          <div class="nm">${esc(t[T_NAME]||'(no name)')} <span class="badge pend">Hand typed</span><small>Tap · no scan</small></div><div class="go">›</div></div>`; }).join('')}
-    </div>` : '';
+  setTitle('Return tools','Scan QR · or tap a tool');
   $('view').innerHTML=`<button class="back" onclick="techStart()">‹ Back</button>
-    <div class="actban ret"><span class="ar">↓</span> RETURN — scan the sticker on the tool</div>
-    ${RET_BASKET.length?`<div class="alert green" style="margin-bottom:10px"><b>${RET_BASKET.length} tool${RET_BASKET.length>1?'s':''} scanned:</b> ${esc(RET_BASKET.map(b=>mvTag(LOG.find(x=>x.id===b.id)||{tid:'?'})).join(', '))}</div>`:''}
-    ${manBlock}
-    <div class="alert info"><b>Scan the tool QR</b> for catalog tools. Hand-typed tools: tap above (no QR).</div>
+    <div class="actban ret"><span class="ar">↓</span> RETURN — scan stickers (or tap one)</div>
+    ${doneBan}
+    <div class="card" style="padding:6px 14px;margin-bottom:10px"><h3 style="margin:12px 4px 4px">Still to return (${out.length})</h3>
+      <div class="muted" style="padding:0 4px 6px;font-size:12px">Prefer: scan QR below for fast multi-return · or tap one tool</div>
+      ${out.map(m=>row(m, isManual(m.tid)?'Tap · no QR':'Tap · opens cam for this tool')).join('')}
+    </div>
+    <div class="alert info"><b>Scan the tool QR</b> — after each match, put it in its place. Hand-typed: tap above.</div>
     <div id="reader"></div>
     <div class="scanhint" id="camfail" style="display:none"><div class="qic">📷</div><div class="t">Camera not available</div>
-      <div class="d">Enable the camera and tap Retry. Catalog returns need a successful QR scan (anti-cheat).</div>
+      <div class="d">Enable the camera and tap Retry — or tap a tool in the list above.</div>
       <button class="btn primary" style="margin-top:10px" onclick="retCam()">Retry camera</button></div>
-    ${RET_BASKET.length?`<button class="btn green" id="btnFinish" onclick="retFinishGate()">Finish return (${RET_BASKET.length})</button>`:''}`;
+    ${finishBtn}`;
   startScanner(retScan);
 }
-function returnManualFromCam(mid){
+function retOpenOne(mid){
   const m=LOG.find(x=>x.id===mid);
-  if(!m||m.status!=='OUT'||!sameTech(m.techId,ME&&ME.id)||!isManual(m.tid)){ toast('Not with you any more'); retCam(); return; }
+  if(!m||m.status!=='OUT'||!sameTech(m.techId,ME&&ME.id)){ toast('Not with you any more'); retCam(); return; }
   returnScreen(m.tid,m);
 }
+function returnManualFromCam(mid){ retOpenOne(mid); }
 function retScan(txt){
   if(RET_BUSY) return;
   if(String(txt||'').trim()===CABIN_CODE){ toast('That is the cabin QR — to take tools go Back and press TAKE TOOLS'); return; }
@@ -1230,7 +1239,7 @@ function retCheck(){
       return `<div class="toolrow"><div class="id">${esc(mvTag(m))}</div><div class="nm">${esc(t[T_NAME]||'')} ${gradeBadge(b.cin)}<small>Back in: <b>${esc(retLoc(m.tid)||'its place')}</b></small>${b.note?`<small>${esc(b.note)}</small>`:''}
         <small><span class="rp-link" style="text-decoration:underline" onclick="RP_FROM='check';retProblem('${m.id}')">problem?</span> · <span class="rp-link" style="text-decoration:underline" onclick="retRemove('${m.id}')">remove</span></small></div></div>`; }).join('')}</div>
     ${left?`<button class="btn ghost" onclick="retCam()">＋ Scan another tool (${left} left)</button>`:''}
-    <div class="card center" id="retAsk" style="border:2px solid var(--ink)"><b style="font-size:16px">Are all tools back in the same location?</b><br>You have <b>3 or more</b> tools out. Confirm every tool is in <b>its listed place</b> before sending.</div>
+    <div class="card center" id="retAsk" style="border:2px solid var(--ink)"><b style="font-size:16px">Are all tools placed in their correct locations?</b><br>You are returning <b>${RET_BASKET.length}</b> tools. Confirm each one is in <b>its listed place</b> before sending.</div>
     <div id="retNoMsg"></div>
     <div class="row2"><button class="btn red" id="btnNo" onclick="retNo()">NO</button><button class="btn green" id="btnYes" onclick="retSubmit()">YES — send to store keeper</button></div>`;
 }
@@ -2132,13 +2141,17 @@ function rlist(){
   const seenB={};
   box.innerHTML=items.map(({t,m})=>{
     let bh='';
+    /* v3319: Accept all ONLY when this same tech returned 2+ tools in one batch. Single return = no banner. */
     if(TAB==='pending'&&m.retBatch&&!seenB[m.retBatch]){ seenB[m.retBatch]=1;
-      const B=items.filter(x=>x.m.retBatch===m.retBatch).map(x=>x.m), nAll=B.filter(x=>!pcNof(x.tid)).length;
-      bh=`<div class="rec" id="batch_${esc(m.retBatch)}" style="border:2px solid var(--ink);background:#fafbfc"><div class="hd"><span class="rname">↓ ${esc(techPlain(m))} returned ${B.length} tool${B.length>1?'s':''}</span><span class="rp-when">${fmtTime(m.ret)}</span></div>
+      const B=items.filter(x=>x.m.retBatch===m.retBatch).map(x=>x.m);
+      const sameTechOk=B.every(x=>sameTech(x.techId,m.techId));
+      const nAll=B.filter(x=>!pcNof(x.tid)).length;
+      if(B.length>=2&&sameTechOk){
+      bh=`<div class="rec" id="batch_${esc(m.retBatch)}" style="border:2px solid var(--ink);background:#fafbfc"><div class="hd"><span class="rname">↓ ${esc(techPlain(m))} returned ${B.length} tools</span><span class="rp-when">${fmtTime(m.ret)}</span></div>
         <div class="sub">${techTag(m)}${m.placed?' · says: <b>all back in their place</b>':''}</div>
         <div class="sub">${B.map(x=>esc(mvTag(x))+(x.cin&&x.cin!=='A'?' ('+x.cin+')':'')).join(' · ')}</div>
-        ${nAll?`<div class="row2"><button class="btn green sm" onclick="acceptBatch('${esc(m.retBatch)}')">Accept all (${nAll}) — checked</button></div>`:''}
-        ${B.length>nAll?`<div class="sub">Sets with pieces: count them below.</div>`:''}</div>`; }
+        ${nAll>=2?`<div class="row2"><button class="btn green sm" onclick="acceptBatch('${esc(m.retBatch)}')">Accept all (${nAll}) — checked</button></div>`:''}
+        ${B.length>nAll?`<div class="sub">Sets with pieces: count them below one by one.</div>`:''}</div>`; } }
     return bh+(()=>{
     if(!m)return `<div class="rec"><div class="hd"><span class="rid">${t[T_ID]}</span><span class="rname">${esc(t[T_NAME]||'(no name)')}</span><span class="badge instore">In store</span></div><div class="sub">${meta(t)}</div></div>`;
     let b='';if(m.status==='OUT')b=isOverdue(m)?'<span class="badge out">Overdue</span>':isDueSoon(m)?dueBadge(m):'<span class="badge" style="background:var(--bluebg);color:var(--blue)">Out</span>';if(m.status==='PENDING')b='<span class="badge pend">Return</span>'+gradeBadge(m.cin);if(m.status==='REQ')b='<span class="badge pend">Take</span>';
@@ -3871,7 +3884,7 @@ async function rej(id){ if(!requireKeeper())return;
    - only at a SAFE moment: first screen, technician choice / blocked / cabin-scan screen, store keeper PIN
    screen or dashboard, or while the page is in the background. Never in the middle of taking or returning
    tools, never while typing. A store keeper must type his PIN again after an update. */
-const APP_BUILD=3318;      /* bigger number = newer upload — v3318 MT return no-QR; catalog separate from Hand typed */
+const APP_BUILD=3319;      /* bigger number = newer upload — v3319 Accept-all same-tech 2+; return list tap + basket 3+ ask */
 let AU_NEW=0, AU_BUSY=false;
 function auSafe(){
   const a=document.activeElement; if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
