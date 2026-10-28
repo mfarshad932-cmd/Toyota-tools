@@ -644,7 +644,9 @@ function rebuildMTools(){
   LOG.forEach(m=>{ if(m.kind==='TOOL'&&m.status!=='IN'&&m.tid) live[m.tid]=1; });
   MTOOLS = MTALL.filter(t=>live[t[T_ID]]);
 }
-const ALLTOOLS=()=>TOOLS.concat(MTOOLS);
+/* Catalog = permanent TOOLS only. MTOOLS are temporary hand-typed (MT-*) — never part of the catalog list UI. */
+const CATALOG=()=>TOOLS;
+const ALLTOOLS=()=>TOOLS.concat(MTOOLS);   // live resolution (Your tools / OUT / Hand typed) — not the catalog browser
 const isManual=id=>/^MT-/.test(String(id||''));
 const toolById=id=>ALLTOOLS().find(t=>t[T_ID]===id)||MTALL.find(t=>t[T_ID]===id);
 function nextMId(){ let n=0;
@@ -1108,18 +1110,47 @@ function retCam(){
   const out=retLeft();
   if(!out.length&&!RET_BASKET.length){ toast('You have no tool to return'); techStart(); return; }
   if(!out.length){ retCheck(); return; }
+  const mans=out.filter(m=>isManual(m.tid));
+  const cats=out.filter(m=>!isManual(m.tid));
   TV='retcam'; RET_BUSY=false;
+  /* Only hand-typed left: no camera — pick by name. */
+  if(!cats.length){
+    stopScanner();
+    setTitle('Return typed tools','No QR — confirm by name');
+    $('view').innerHTML=`<button class="back" onclick="techStart()">‹ Back</button>
+      <div class="actban ret"><span class="ar">↓</span> HAND-TYPED RETURN — no QR</div>
+      ${RET_BASKET.length?`<div class="alert green" style="margin-bottom:10px"><b>${RET_BASKET.length} already in return list</b></div>`:''}
+      <div class="alert info"><b>These tools were typed by hand.</b><br>Tap one, confirm the name, select A–D, then send to the store keeper.</div>
+      <div class="card" style="padding:6px 14px"><h3 style="margin:12px 4px 4px">Typed tools with you</h3>
+        ${mans.map(m=>{ const t=toolOr(m.tid);
+          return `<div class="toolrow" onclick="returnManualFromCam('${m.id}')"><div class="id">${esc(mvTag(m))}</div>
+            <div class="nm">${esc(t[T_NAME]||'(no name)')} <span class="badge pend">Hand typed</span><small>Tap to return · no QR</small></div><div class="go">›</div></div>`; }).join('')}
+      </div>
+      ${RET_BASKET.length?`<button class="btn green" id="btnFinish" onclick="retFinishGate()">Finish return (${RET_BASKET.length})</button>`:''}`;
+    return;
+  }
   setTitle('Return tools','Scan the tool QR — required');
+  const manBlock = mans.length ? `<div class="card" style="padding:6px 14px;margin-bottom:10px"><h3 style="margin:12px 4px 4px">Hand-typed (no QR)</h3>
+      ${mans.map(m=>{ const t=toolOr(m.tid);
+        return `<div class="toolrow" onclick="returnManualFromCam('${m.id}')"><div class="id">${esc(mvTag(m))}</div>
+          <div class="nm">${esc(t[T_NAME]||'(no name)')} <span class="badge pend">Hand typed</span><small>Tap · no scan</small></div><div class="go">›</div></div>`; }).join('')}
+    </div>` : '';
   $('view').innerHTML=`<button class="back" onclick="techStart()">‹ Back</button>
     <div class="actban ret"><span class="ar">↓</span> RETURN — scan the sticker on the tool</div>
     ${RET_BASKET.length?`<div class="alert green" style="margin-bottom:10px"><b>${RET_BASKET.length} tool${RET_BASKET.length>1?'s':''} scanned:</b> ${esc(RET_BASKET.map(b=>mvTag(LOG.find(x=>x.id===b.id)||{tid:'?'})).join(', '))}</div>`:''}
-    <div class="alert info"><b>Scan the tool QR</b> to return it.</div>
+    ${manBlock}
+    <div class="alert info"><b>Scan the tool QR</b> for catalog tools. Hand-typed tools: tap above (no QR).</div>
     <div id="reader"></div>
     <div class="scanhint" id="camfail" style="display:none"><div class="qic">📷</div><div class="t">Camera not available</div>
-      <div class="d">Enable the camera and tap Retry. Every return needs a successful QR scan (anti-cheat).</div>
+      <div class="d">Enable the camera and tap Retry. Catalog returns need a successful QR scan (anti-cheat).</div>
       <button class="btn primary" style="margin-top:10px" onclick="retCam()">Retry camera</button></div>
     ${RET_BASKET.length?`<button class="btn green" id="btnFinish" onclick="retFinishGate()">Finish return (${RET_BASKET.length})</button>`:''}`;
   startScanner(retScan);
+}
+function returnManualFromCam(mid){
+  const m=LOG.find(x=>x.id===mid);
+  if(!m||m.status!=='OUT'||!sameTech(m.techId,ME&&ME.id)||!isManual(m.tid)){ toast('Not with you any more'); retCam(); return; }
+  returnScreen(m.tid,m);
 }
 function retScan(txt){
   if(RET_BUSY) return;
@@ -1148,8 +1179,9 @@ function retAdded(mid){
   const mv=LOG.find(x=>x.id===mid)||{}; const t=toolOr(mv.tid); const b=RET_BASKET.find(x=>x.id===mid)||{cin:'A'};
   const left=retLeft().length, loc=retLoc(mv.tid);
   const g=b.cin||'A';
+  const manBan=isManual(mv.tid);
   setTitle('Put it back','Tool '+mvTag(mv));
-  $('view').innerHTML=`<div class="actban ret"><span class="ar">✓</span> QR MATCHED — put it back</div>
+  $('view').innerHTML=`<div class="actban ret"><span class="ar">✓</span> ${manBan?'HAND-TYPED — confirm & put back':'QR MATCHED — put it back'}</div>
     <div class="card detail"><div class="tid">${esc(mvTag(mv))}</div><div class="tname">${esc(t[T_NAME]||'')}</div></div>
     <div class="card center" id="retLoc" style="border:2px solid var(--ink)"><div class="muted" style="font-size:12px;letter-spacing:.12em;font-weight:800">PUT IT BACK IN</div>
       <div style="font-size:26px;font-weight:800;margin-top:4px">${esc(loc||'its place in the store')}</div>
@@ -1286,7 +1318,7 @@ function searchTools(text){
   if(pq&&pq.unit){ const t0=toolById(pq.tid); if(t0) return [t0]; }
   const raw=String(text||'').trim().toLowerCase();
   const q=raw.replace(/[-\s]/g,'');            // "tl2" or "tl-2" both work
-  const SRC=ALLTOOLS();
+  const SRC=CATALOG();                 // never list MT-* in catalog search
   if(!q) return SRC.slice();
   return SRC.filter(t=>{
     const id=t[T_ID].toLowerCase().replace(/[-\s]/g,'');       // tl001
@@ -1308,7 +1340,7 @@ function tsearch(){
   if(q){
     list=searchTools(raw);
   } else {
-    list=MTOOLS.concat(TOOLS).slice(0,10);
+    list=CATALOG().slice(0,10);          // typed tools are not in the take-list
   }
   if(!list.length){box.innerHTML='<div class="empty">No tool found for “'+esc(raw)+'”</div>';return;}
   box.innerHTML=list.map(t=>{
@@ -1332,7 +1364,7 @@ function tsearch(){
     return `<div class="toolrow" onclick="openTool('${t[T_ID]}')"><div class="id">${t[T_ID]}</div>
       <div class="nm">${esc(t[T_NAME]||'(no name)')} ${b}<small>${meta(t)}</small>${who}</div>
       <div class="go">›</div></div>`;
-  }).join('')+(q?`<div class="muted center" style="padding:8px">${list.length} result${list.length>1?'s':''}</div>`:(ALLTOOLS().length>10?'<div class="muted center" style="padding:10px">Showing first 10 · type to search all '+ALLTOOLS().length+'</div>':''));
+  }).join('')+(q?`<div class="muted center" style="padding:8px">${list.length} result${list.length>1?'s':''}</div>`:(CATALOG().length>10?'<div class="muted center" style="padding:10px">Showing first 10 · type to search all '+CATALOG().length+'</div>':''));
 }
 function scanTool(){
   TV='input';
@@ -1583,6 +1615,8 @@ async function doTake(){
 }
 let RG=null;
 function returnScreen(tid,m){
+  /* v3318: MT-* hand-typed tools have no QR — name confirm + A–D only. Catalog tools still need QR (v3314). */
+  if(isManual(tid)) return returnManualScreen(m);
   /* v3314 anti-cheat: ABCD + camera QR required. No return without matching scan. */
   GATE=false; TV='retone'; RET_BUSY=false; RET_SCAN_OK=false; RET_FOCUS_MID=m.id; RG=null;
   const t=toolOr(tid); const loc=retLoc(tid);
@@ -1608,6 +1642,31 @@ function returnScreen(tid,m){
     <p class="muted center" style="margin-top:12px" id="retHint">Scan the QR on this tool to unlock Return</p>`;
   startScanner(txt=>retOneScan(txt,m));
 }
+/* Hand-typed (MT-*) return: no QR ever — confirm the name, pick A–D, then same PENDING path. */
+function returnManualScreen(m){
+  GATE=false; TV='retone'; RET_BUSY=false; RET_SCAN_OK=true; RET_FOCUS_MID=m.id; RG=null; stopScanner();
+  const t=toolOr(m.tid); const loc=retLoc(m.tid);
+  setTitle('Return typed tool',mvTag(m));
+  $('view').innerHTML=`<button class="back" onclick="techStart()">‹ Back</button>
+    ${m.rejBy?`<div class="alert red"><b>${esc(m.rejBy)} did not accept your return.</b><br>Check the tool and return it again.</div>`:''}
+    <div class="actban ret"><span class="ar">↓</span> HAND-TYPED — no QR sticker</div>
+    <div class="alert info"><b>This tool was typed by hand (${esc(m.tid)}).</b><br>Confirm the name below, select condition A–D, then send to the store keeper.</div>
+    <div class="card detail"><div class="tid">${esc(mvTag(m))} <span class="badge pend">Hand typed</span></div>
+      <div class="tname">${esc(t[T_NAME]||'(no name)')}</div>
+      <div class="meta">${meta(t,1)}</div></div>
+    <div class="card center" id="retLoc" style="border:2px solid var(--ink)"><div class="muted" style="font-size:12px;letter-spacing:.12em;font-weight:800">PUT IT BACK IN</div>
+      <div style="font-size:26px;font-weight:800;margin-top:4px">${esc(loc||'give to store keeper')}</div>
+      <div class="muted" style="margin-top:4px">hand-typed tool — no shelf QR</div></div>
+    <div class="card"><h3>Confirm tool name</h3>
+      <div class="alert warn" style="margin:0"><b>${esc(t[T_NAME]||'(no name)')}</b><br>ID ${esc(m.tid)} · with you since ${fmtTime(m.out)}</div></div>
+    <div class="card"><h3>Condition on return</h3><div class="grades" id="grades">
+      <button class="grade" data-g="A" onclick="sg('A')">A<small>Good</small></button><button class="grade" data-g="B" onclick="sg('B')">B<small>Defect</small></button>
+      <button class="grade" data-g="C" onclick="sg('C')">C<small>Damaged</small></button><button class="grade" data-g="D" onclick="sg('D')">D<small>Missing</small></button></div>
+      <div id="nw" class="hidden"><label class="f" style="margin-top:6px">What is the problem?</label><textarea class="big" id="note" placeholder="e.g. one bolt missing from base plate"></textarea></div></div>
+    <button class="btn green" id="retBtn" disabled onclick="doReturn('${m.id}')">Return typed tool</button>
+    <p class="muted center" style="margin-top:12px" id="retHint">Select condition A–D to unlock Return (no QR for hand-typed tools)</p>`;
+}
+
 let RET_SCAN_OK=false, RET_FOCUS_MID=null;
 function retRetryOne(){ const mv=LOG.find(x=>x.id===RET_FOCUS_MID); if(!mv||mv.status!=='OUT'){ toast('This tool is already returned'); techStart(); return; } returnScreen(mv.tid,mv); }
 function retOneScan(txt,m){
@@ -1628,7 +1687,10 @@ function retOneScan(txt,m){
 function armRetBtn(){ const b=$('retBtn'); if(b) b.disabled=!(RET_SCAN_OK&&RG); }
 function sg(g){RG=g;document.querySelectorAll('#grades .grade').forEach(b=>b.classList.toggle('sel',b.dataset.g===g));const nw=$('nw'); if(nw) nw.classList.toggle('hidden',g==='A'); armRetBtn();}
 async function doReturn(mid){
-  if(!RET_SCAN_OK||String(RET_FOCUS_MID)!==String(mid)){ toast('Scan the tool QR first'); return; }
+  const mv0=LOG.find(x=>x.id===mid);
+  const man=mv0&&isManual(mv0.tid);
+  if(!man && (!RET_SCAN_OK||String(RET_FOCUS_MID)!==String(mid))){ toast('Scan the tool QR first'); return; }
+  if(man && String(RET_FOCUS_MID)!==String(mid)){ toast('Open this typed tool again to return it'); return; }
   if(!RG){toast('Select condition');return;}const note=$('note')?$('note').value.trim():'';
   if(RG!=='A'&&!note){toast('Describe the problem');return;}
   const mv=LOG.find(x=>x.id===mid);
@@ -1637,16 +1699,15 @@ async function doReturn(mid){
   else { const b=RET_BASKET.find(x=>x.id===mid); b.cin=RG; b.note=note||''; }
   RET_SCAN_OK=false; RET_FOCUS_MID=null;
   const left=retLeft().length;
-  if(left>0){ toast('Added — put it back, then scan the next tool'); retCam(); return; }
+  if(left>0){ toast(isManual(mv.tid)?'Added — return the next tool':'Added — put it back, then scan the next tool'); retCam(); return; }
   if(needsSameLocAsk()) retCheck(); else retSubmit();
 }
 
 /* ===== MANUAL TOOL — a tool that is not in the master list =====
-   The store holds tools that were never entered. Instead of blocking the man, it is
-   typed ONCE. It is saved in the same database as a MTOOL record, gets its own MT-000
-   number, and from then on every phone finds it by search like a normal tool.
-   Take / return / store keeper approval / overdue / reports all work with no other change.
-   Both sides can do it: the technician on his phone, and the store keeper on his screen. */
+   Typed ONCE → MTOOL record + MT-000 id. NEVER added to the permanent TOOLS catalog.
+   Live only while OUT/REQ/PENDING (Your tools, keeper OUT, Hand typed chip, reports).
+   NO QR sticker ever — return uses name confirm + A–D (no camera). Catalog tools still need QR.
+   Both sides can type: technician, and store keeper (no-phone issue). */
 let MBACK='tech';
 function manualScreen(from){
   MBACK = from||'tech';
@@ -1674,7 +1735,7 @@ async function doAddManual(){
   const part=($('mpart').value||'').trim();
   const loc =($('mloc').value||'').trim()||'Not recorded';
   // never let the same tool be typed twice — send him to the one already there
-  const dup = ALLTOOLS().find(t=>(t[T_NAME]||'').trim().toLowerCase()===name.toLowerCase()
+  const dup = CATALOG().concat(MTOOLS).find(t=>(t[T_NAME]||'').trim().toLowerCase()===name.toLowerCase()
                               || (part && (t[T_PART]||'').trim().toLowerCase()===part.toLowerCase()));
   if(dup){ toast('Already in the list as '+dup[T_ID]);
            if(MBACK==='np') npChoose(dup[T_ID]); else openTool(dup[T_ID]); return; }
@@ -1996,9 +2057,10 @@ function counts(){
   let out=0,pending=0,overdue=0,damaged=0,reqs=0,due=0;
   open.forEach(m=>{if(m.status==='OUT'){out++;if(isOverdue(m))overdue++;else if(isDueSoon(m))due++;}if(m.status==='PENDING')pending++;if(m.status==='REQ')reqs++;});
   damaged=damageOpen().length;
-  const allT=ALLTOOLS(), lm=liveMap(), openDmg={}; damageOpen().forEach(m=>{openDmg[m.tid]=m;});
-  const nOf=f=>allT.filter(t=>afHit(f,t,openDmg,lm)).length;
-  return {total:allT.length,inStore:nOf('in'),out,pending,overdue,damaged,reqs,due,
+  /* LIVE TOOLS All/In/Out = permanent catalog only. Hand typed counted separately. */
+  const catT=CATALOG(), lm=liveMap(), openDmg={}; damageOpen().forEach(m=>{openDmg[m.tid]=m;});
+  const nOf=f=>catT.filter(t=>afHit(f,t,openDmg,lm)).length;
+  return {total:catT.length,inStore:nOf('in'),out,pending,overdue,damaged,reqs,due,
           tIn:nOf('in'),tOut:nOf('out'),tOver:nOf('over'),tDmg:nOf('dmg')};
 }
 let TAB='out';
@@ -2214,8 +2276,21 @@ function rallTools(box){
 function paintAll(box){
   const openDmg={}; damageOpen().forEach(m=>{openDmg[m.tid]=m;});
   const lm=liveMap();
-  let list=searchTools(AQ);
-  list=list.filter(t=>afHit(AF,t,openDmg,lm));
+  let list;
+  if(AF==='man'){
+    const raw=String(AQ||'').trim().toLowerCase();
+    const q=raw.replace(/[-\s]/g,'');
+    list=MTOOLS.filter(t=>{
+      if(!q) return true;
+      const id=String(t[T_ID]||'').toLowerCase().replace(/[-\s]/g,'');
+      const name=(t[T_NAME]||'').toLowerCase();
+      const part=(t[T_PART]||'').toLowerCase().replace(/[-\s]/g,'');
+      const loc=(t[T_LOC]||'').toLowerCase();
+      return id.includes(q)||name.includes(raw)||part.includes(q)||loc.includes(raw);
+    });
+  } else {
+    list=searchTools(AQ).filter(t=>afHit(AF,t,openDmg,lm));
+  }
   if(!list.length){box.innerHTML='<div class="empty">No tool here</div>';return;}
   box.innerHTML=list.map(t=>{
     const L=lm[t[T_ID]]||toolLive(t[T_ID]), m=L.m, d=openDmg[t[T_ID]];
@@ -3796,7 +3871,7 @@ async function rej(id){ if(!requireKeeper())return;
    - only at a SAFE moment: first screen, technician choice / blocked / cabin-scan screen, store keeper PIN
    screen or dashboard, or while the page is in the background. Never in the middle of taking or returning
    tools, never while typing. A store keeper must type his PIN again after an update. */
-const APP_BUILD=3317;      /* bigger number = newer upload — v3317 Your tools sameTech fix; short REQ cards */
+const APP_BUILD=3318;      /* bigger number = newer upload — v3318 MT return no-QR; catalog separate from Hand typed */
 let AU_NEW=0, AU_BUSY=false;
 function auSafe(){
   const a=document.activeElement; if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
