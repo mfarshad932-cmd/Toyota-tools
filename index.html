@@ -394,6 +394,21 @@ button.btn[disabled]{opacity:.42;pointer-events:none}
 .rp-flash{animation:rpFlash 1.8s ease-out}@keyframes rpFlash{0%,35%{background:#FFE9A8}100%{background:transparent}}
 .rp-who{margin:6px 0 2px;padding:7px 10px;background:#F6F7F9;border-radius:9px;font-size:12.5px;line-height:1.5;color:#2A323D}
 .rp-who div{display:flex;gap:8px;flex-wrap:wrap}.rp-who span{flex:0 0 98px;color:var(--ink2);font-weight:700}
+/* v3321: Late returns / Procedure broken - one profile row per technician, tap = his full details open right there */
+.rp-tg{border:1.5px solid var(--line);border-radius:14px;margin:0 0 10px;background:#fff;overflow:hidden;transition:border-color .2s}
+.rp-tg.open{border-color:#D9B3AE}
+.rp-tgh{display:flex;align-items:center;gap:11px;width:100%;padding:12px 13px;border:0;background:none;text-align:left;font:inherit;color:var(--ink);cursor:pointer}
+.rp-tgh:active{background:#F1F3F6}
+.rp-av{flex:0 0 38px;height:38px;border-radius:50%;background:var(--redbg);color:var(--red);display:grid;place-items:center;font-weight:800;font-size:15px}
+.rp-tg.amber .rp-av{background:var(--amberbg);color:var(--amber)}
+.rp-tg .rp-ar{display:inline-block;transition:transform .25s}.rp-tg.open .rp-ar{transform:rotate(90deg)}
+.rp-tgb{display:grid;grid-template-rows:0fr;transition:grid-template-rows .28s ease}
+.rp-tg.open .rp-tgb{grid-template-rows:1fr}
+.rp-tgb>div{overflow:hidden;min-height:0;visibility:hidden;transition:visibility 0s .28s}
+.rp-tg.open .rp-tgb>div{visibility:visible;transition-delay:0s}
+.rp-tgb .rec{margin:0 12px;padding:12px 4px}
+.rp-tgb .rec:last-of-type{border-bottom:0}
+.rp-tgf{padding:4px 14px 14px;font-size:13px;font-weight:700;color:var(--blue)}
 #view{overflow-x:clip}   /* the slide-in never makes the page scroll sideways */
 .rp-slide{animation:rpIn .22s ease-out}
 @keyframes rpIn{from{transform:translateX(26px);opacity:0}to{transform:none;opacity:1}}
@@ -2786,6 +2801,23 @@ function reportView(key,quiet){
     <p class="muted center" style="margin-top:10px">Same lists as above, in one file.</p><div class="rp-nav">${repBack('reportPick()','All months')}</div></div>`;
   repLand('main',quiet,from?(REP_SUBJ.some(x=>x[0]===from)?'rs_'+from:'rt_'+from):null);
 }
+/* v3321: Late returns + Procedure broken - ONE short line per technician (name · section · ID + a count).
+   Tap his line = his full details open right there. Tap again = closed. Open lines stay open when he comes back from a tool / profile page. */
+const REP_TG={};
+function repTgToggle(btn){ const box=btn.parentNode, o=box.classList.toggle('open'); btn.setAttribute('aria-expanded',o?'true':'false'); REP_TG[box.getAttribute('data-k')]=o; }
+function repTechGroups(L,key,id,chip,cls){
+  const G=Object.create(null), order=[];
+  L.forEach(e=>{ const k=repKeyOf(e); if(!k) return; if(!G[k]){ G[k]={k,tech:String(e.tech||''),sec:e.sec||'',techId:e.techId||'',ev:[]}; order.push(k); } G[k].ev.push(e); });
+  const rows=order.map(k=>G[k]).sort((a,b)=>b.ev.length-a.ev.length||a.tech.localeCompare(b.tech));
+  return rows.map(g=>{ const gk=key+'|'+id+'|'+g.k, open=REP_TG[gk]?' open':'';
+    return `<div class="rp-tg ${cls||''}${open}" data-k="${esc(gk)}">
+      <button class="rp-tgh" aria-expanded="${open?'true':'false'}" onclick="repTgToggle(this)">
+        <span class="rp-av">${esc((g.tech.trim()[0]||'?').toUpperCase())}</span>
+        <span class="rp-main"><b>${esc(g.tech)}</b><small>${esc(g.sec)}${g.techId?' · ID '+esc(g.techId):''}</small></span>
+        <span class="badge ${cls==='amber'?'pend':'out'}">${esc(chip(g.ev))}</span><span class="rp-ar">›</span></button>
+      <div class="rp-tgb"><div>${g.ev.map(e=>repEventRow(e,key,false)).join('')}
+        <div class="rp-tgf rp-link" onclick="repTech('${key}','${repQ(g.k)}')">Open his full month profile ›</div></div></div></div>`; }).join('');
+}
 function repSubject(key,id,quiet){
   const d=monthData(key); const S=REP_SUBJ.find(s=>s[0]===id)||REP_SUBJ_X.find(s=>s[0]===id); if(!S){ reportView(key); return; }
   curStoreView=()=>repSubject(key,id,true); REP_LAST=id; repPush(()=>reportView(key)); repEnter('s:'+id,quiet);
@@ -2796,9 +2828,13 @@ function repSubject(key,id,quiet){
     body=d.problemTechs.length?d.problemTechs.map((p,i)=>repTechRow(p,key,i)).join(''):empty('No technician broke a rule this month');
     body+=`<p class="muted" style="margin:12px 4px;line-height:1.6"><b>Points:</b> overdue 3 (+1 a day) · late 2 (+1 a day) · missing 3 · said GOOD but it was not 3 · damaged 2 · defect 1 · no phone 2 a day. ID typed is not a mistake (it only shows how he came). More points = more problems.</p>`;
   }
-  else if(id==='overdue'||id==='late'){
-    const L=id==='overdue'?d.overdue:d.late;
-    body=L.length?L.map(e=>repEventRow(e,key,true)).join(''):empty(id==='overdue'?'No tool is overdue':'No late return this month');
+  else if(id==='overdue'){
+    const L=d.overdue;
+    body=L.length?L.map(e=>repEventRow(e,key,true)).join(''):empty('No tool is overdue');
+  }
+  else if(id==='late'){                                   /* v3321: one profile line per technician, tap = his late returns in full */
+    const L=d.late, n=new Set(L.map(repKeyOf)).size;
+    body=L.length?`<p class="muted" style="margin:0 2px 10px">${n} technician${n!==1?'s':''} · ${L.length} late return${L.length!==1?'s':''} · tap a name for the full details</p>`+repTechGroups(L,key,id,ev=>ev.length+' late'):empty('No late return this month');
   }
   else if(id==='damage'){
     const cnt=g=>d.conds.filter(m=>m.cin===g).length;
@@ -2807,8 +2843,12 @@ function repSubject(key,id,quiet){
         return `<h3 id="rpDm_${t}" style="margin:16px 2px 4px">${REP_WORD[t]} (${L.length})</h3>`+L.map(e=>repEventRow(e,key,true)).join(''); }).join(''):empty('No damaged or missing tool this month'));
   }
   else if(id==='proc'){
-    body=d.proc.length?REP_PROC.map(([t,title,why])=>{ const L=d.proc.filter(e=>e.type===t); if(!L.length) return '';
-      return `<h3 style="margin:16px 2px 2px">${title} (${L.length})</h3><p class="muted" style="margin:0 2px 6px;line-height:1.45">${why}</p>`+L.map(e=>repEventRow(e,key,true)).join(''); }).join(''):empty('Everyone followed the procedure this month');
+    /* v3321: one profile line per technician; inside = every procedure mistake he made, in full */
+    const n=new Set(d.proc.map(repKeyOf)).size;
+    body=d.proc.length?`<p class="muted" style="margin:0 2px 8px">${n} technician${n!==1?'s':''} · ${d.proc.length} mistake${d.proc.length!==1?'s':''} · tap a name for the full details</p>`+
+      REP_PROC.map(([t,title,why])=>d.proc.some(e=>e.type===t)?`<p class="muted" style="margin:0 2px 6px;line-height:1.45"><b>${title}:</b> ${why}</p>`:'').join('')+
+      repTechGroups(d.proc,key,id,ev=>{ const a=ev.filter(e=>e.type==='NOPHONE').length, b=ev.filter(e=>e.type==='SAIDGOOD').length;
+        return [a?a+'× no phone':'',b?b+'× said GOOD':''].filter(Boolean).join(' · '); },'amber'):empty('Everyone followed the procedure this month');
   }
   else if(id==='techs') body=d.techs.length?d.techs.slice().sort((a,b)=>a.tech.localeCompare(b.tech)).map(p=>repTechRow(p,key,null)).join(''):empty('No technician activity');
   else if(id==='tools') body=d.tools.length?d.tools.map(t=>`<button class="rp-row" onclick="repTool('${key}','${repQ(t.tid)}')">
@@ -3884,7 +3924,7 @@ async function rej(id){ if(!requireKeeper())return;
    - only at a SAFE moment: first screen, technician choice / blocked / cabin-scan screen, store keeper PIN
    screen or dashboard, or while the page is in the background. Never in the middle of taking or returning
    tools, never while typing. A store keeper must type his PIN again after an update. */
-const APP_BUILD=3319;      /* bigger number = newer upload — v3319 Accept-all same-tech 2+; return list tap + basket 3+ ask */
+const APP_BUILD=3321;      /* bigger number = newer upload — v3321 report: Late returns + Procedure broken = one profile row per technician (tap = full details); built on 3319 (Grok) */
 let AU_NEW=0, AU_BUSY=false;
 function auSafe(){
   const a=document.activeElement; if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
