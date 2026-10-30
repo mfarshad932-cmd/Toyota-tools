@@ -409,6 +409,38 @@ button.btn[disabled]{opacity:.42;pointer-events:none}
 .rp-tgb .rec{margin:0 12px;padding:12px 4px}
 .rp-tgb .rec:last-of-type{border-bottom:0}
 .rp-tgf{padding:4px 14px 14px;font-size:13px;font-weight:700;color:var(--blue)}
+/* v3322: EXCHANGE RECORD - one clean block, same everywhere */
+.xr{margin:8px 0 2px;border:1.5px solid #D5DCF5;border-radius:12px;background:#fff;overflow:hidden;text-align:left}
+.xr-h{display:flex;align-items:center;gap:9px;width:100%;padding:9px 11px;border:0;background:#EEF2FF;color:#2F3F8F;font:inherit;font-size:12px;font-weight:800;letter-spacing:.06em;text-align:left;cursor:pointer}
+.xr-h .xr-ic{flex:0 0 auto;font-size:16px;line-height:1}
+.xr-h .xr-t{flex:1;min-width:0}
+.xr-h small{display:block;margin-top:2px;font-size:12px;font-weight:600;letter-spacing:0;color:#4A5899;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.xr-h .xr-ar{flex:0 0 auto;font-size:17px;transition:transform .25s}
+.xr.open .xr-h .xr-ar{transform:rotate(90deg)}
+.xr.fixed .xr-h{cursor:default}
+.xr-b{display:grid;grid-template-rows:0fr;transition:grid-template-rows .28s ease}
+.xr.open .xr-b{grid-template-rows:1fr}
+.xr-b>div{overflow:hidden;min-height:0;visibility:hidden;transition:visibility 0s .28s}
+.xr.open .xr-b>div{visibility:visible;transition-delay:0s}
+.xr-p{padding:10px 12px 9px;border-top:1px solid #E4E8F7}
+.xr-p.me{background:#FAFBFF;box-shadow:inset 3px 0 0 #2F3F8F}
+.xr-lab{font-size:11px;font-weight:800;letter-spacing:.09em;color:#2F3F8F}
+.xr-lab.now{color:var(--blue)}.xr-lab.ask{color:var(--amber)}.xr-lab.done{color:var(--green)}
+.xr-who{display:flex;align-items:center;gap:8px;margin:4px 0 6px}
+.xr-who .nm{flex:1;min-width:0}
+.xr-who b{display:block;font-size:14.5px;color:var(--ink);line-height:1.25}
+.xr-who small{display:block;font-size:12px;font-weight:600;color:var(--ink2)}
+.xr-who .go{flex:0 0 auto;font-size:19px;color:var(--ink3)}
+.xr-who.rp-link:active{opacity:.6}
+.xr-row{display:flex;gap:8px;font-size:12.5px;line-height:1.55;color:#2A323D}
+.xr-row>span{flex:0 0 106px;color:var(--ink2);font-weight:700}
+.xr-row>i{flex:1;min-width:0;font-style:normal}
+.xr-row.late,.xr-row.late>span{color:var(--red);font-weight:800}
+.xr-ok{color:var(--green);font-weight:700}.xr-warn{color:var(--amber);font-weight:700}
+.xr-tot{display:flex;gap:8px;padding:9px 12px;border-top:1px solid #E4E8F7;background:#F6F7FB;font-size:12.5px;font-weight:800;color:var(--ink)}
+.xr-tot>span{flex:0 0 106px;color:var(--ink2)}
+@media (max-width:370px){.xr-row>span,.xr-tot>span{flex-basis:98px}}
+.rp-ev .xr-row>span,.rp-ev .xr-tot>span{flex-basis:98px}
 #view{overflow-x:clip}   /* the slide-in never makes the page scroll sideways */
 .rp-slide{animation:rpIn .22s ease-out}
 @keyframes rpIn{from{transform:translateX(26px);opacity:0}to{transform:none;opacity:1}}
@@ -956,6 +988,7 @@ function confirmSelf(t){
 /* v31: the store keeper sees the full story on every tool line */
 function kDetail(m){
   if(!m||m.kind!=='TOOL') return '';
+  if(xrIsX(m)) return xferRecord(m,{k:1,open:true,where:'kd'});   /* v3322: exchange = one clean record */
   const prev=m.fromId?LOG.find(x=>String(x.id)===String(m.fromId)):null;
   const xfer=xferIsH2H(m);
   return `<div class="rp-who" style="margin-top:6px">
@@ -1511,6 +1544,101 @@ function xferInfer(m){
 function xferResolve(m){ return xferSource(m)||xferInfer(m); }
 function xferFrom(m){ return xferResolve(m); }
 function xferBadge(m){ return (xferIsH2H(m)||!!xferInfer(m))?`<span class="badge xfer">⇄ Exchange</span>`:''; }
+/* ===== v3322: EXCHANGE RECORD - ONE shared block for every place that shows an exchange =====
+   Order = time: PREVIOUS TECHNICIAN (or TECHNICIAN 1, 2 ...) -> NOW TOOL WITH / RETURNED BY -> REQUESTED BY.
+   Each man: name · section · ID (tap = his page), when he got it, which store keeper, how long, how late. */
+const XR_OPEN={};
+function xrIsX(m){ return !!(m&&m.kind==='TOOL'&&(xferIsH2H(m)||m.passedTo||m.passedToId||(m.status==='REQ'&&xferInfer(m)))); }
+function xrById(id){ return (id==null||id==='')?null:(LOG.find(x=>x.kind==='TOOL'&&String(x.id)===String(id))||null); }
+const xrGhost=(tech,techId,sec)=>({ghost:true,tech:tech||'',techId:techId==null?'':techId,sec:sec||''});
+function xferChain(m){
+  const seen=new Set(), list=[]; let req=null, cur=m, g=0;
+  if(m.status==='REQ'){ req=m; cur=xferResolve(m)||xrById(m.fromId);
+    if(!cur) return {list:[xrGhost(m.fromTech,m.fromTechId,m.fromSec)],req}; }
+  while(cur&&!seen.has(String(cur.id))&&g++<12){ seen.add(String(cur.id)); list.unshift(cur);
+    if(!xferIsH2H(cur)) break;
+    const p=xrById(cur.fromId);
+    if(!p){ list.unshift(xrGhost(cur.fromTech,cur.fromTechId,cur.fromSec)); break; }
+    cur=p; }
+  let last=list[list.length-1]; g=0;
+  while(last&&!last.ghost&&g++<12){
+    const n=LOG.find(x=>x.kind==='TOOL'&&x.status!=='REQ'&&x.fromId!=null&&String(x.fromId)===String(last.id)&&!seen.has(String(x.id)));
+    if(!n){ if(last.passedTo||last.passedToId) list.push(xrGhost(last.passedTo,last.passedToId,'')); break; }
+    seen.add(String(n.id)); list.push(n); last=n; }
+  if(!req&&last&&!last.ghost&&last.status==='OUT')
+    req=LOG.find(x=>x.kind==='TOOL'&&x.status==='REQ'&&x.fromId!=null&&String(x.fromId)===String(last.id))||null;
+  return {list,req};
+}
+const xrDur=h=>{ const t=Math.max(0,Math.round(h*60)); if(t>=2880){ const d=Math.floor(t/1440), hh=Math.floor((t%1440)/60); return d+' days'+(hh?' '+hh+' h':''); } return Math.floor(t/60)+' h '+(t%60)+' m'; };   /* under 2 days: 26 h 0 m · from 2 days: 3 days 4 h */
+const xrShort=n=>String(n||'').trim().split(/\s+/).slice(0,2).join(' ')||'—';
+function xrHeld(x){
+  if(!x||x.ghost||!x.out) return null;
+  const endIso=x.passedAt||x.ret||null, open=!endIso&&x.status==='OUT';
+  const end=endIso?repT(endIso):(open?Date.now():0);
+  return end?{h:Math.max(0,repHrs(end-repT(x.out))),open}:null;
+}
+function xrGo(x,ctx){
+  if(!x||(!x.techId&&!x.tech)) return '';
+  if(ctx.key) return `event.stopPropagation();repTech('${ctx.key}','${repQ(repKeyOf(x))}')`;
+  if(ctx.k&&x.techId!==''&&x.techId!=null){ const v=typeof x.techId==='number'?x.techId:`'${repQ(x.techId)}'`; return `event.stopPropagation();openProfile(${v})`; }
+  return '';
+}
+const xrR=(lab,val,cls)=>`<div class="xr-row${cls?' '+cls:''}"><span>${lab}</span><i>${val}</i></div>`;
+function xrWho(x,ctx){
+  const p=techParts(x), go=xrGo(x,ctx);
+  return `<div class="xr-who${go?' rp-link':''}"${go?` onclick="${go}"`:''}><div class="nm"><b>${esc(p.name||'—')}</b><small>${[p.sec,p.id?'ID '+p.id:''].filter(Boolean).map(esc).join(' · ')||'&nbsp;'}</small></div>${go?'<span class="go">›</span>':''}</div>`;
+}
+function xrBlock(x,i,list,ctx,me){
+  const n=list.length, last=i===n-1, prev=i>0?list[i-1]:null, next=last?null:list[i+1];
+  let lab, cls='';
+  if(last&&!x.ghost){ if(x.status==='OUT'){lab='NOW TOOL WITH';cls='now';} else if(x.status==='PENDING'){lab='RETURNING NOW';cls='ask';} else {lab='RETURNED BY';cls='done';} }
+  else if(last) { lab='NOW TOOL WITH'; cls='now'; }
+  else lab=n===2?'PREVIOUS TECHNICIAN':'TECHNICIAN '+(i+1);
+  let rows='';
+  if(x.ghost) rows=xrR('Record','older entry — only the name was saved');
+  else {
+    rows+= i===0||(prev&&prev.ghost&&i===1&&!x.fromId)
+      ? xrR('Took from store',fmtTime(x.out))+xrR('Given by',`<b>${esc(x.outBy||'store keeper')}</b>`)
+      : xrR('Received',fmtTime(x.out)+(prev?' ← from '+esc(xrShort(techParts(prev).name)):''))+xrR('Accepted by',`<b>${esc(x.outBy||'store keeper')}</b>`);
+    const H=xrHeld(x);
+    if(H){ const over=H.h-OVERDUE_H;
+      if(over>0){ rows+=xrR(H.open?'Held so far':'Held',xrDur(H.h))+xrR('Late 🔴',`${xrDur(over)} over the limit`,'late'); }
+      else rows+=xrR(H.open?'Held so far':'Held',xrDur(H.h)+(H.open?(H.h>DUE_H?` <b class="xr-warn">⏳ ${xrDur(OVERDUE_H-H.h)} left</b>`:` <b class="xr-ok">✅ in time</b>`):` <b class="xr-ok">✅ on time</b>`));
+    }
+    if(next) rows+=xrR('Handed over',fmtTime(x.passedAt||x.ret||next.out)+' → '+esc(xrShort(techParts(next).name)));
+    else if(x.status==='OUT') rows+=xrR('Returned','<b style="color:var(--red)">not yet</b>');
+    else if(x.status==='PENDING') rows+=xrR('Returned',fmtTime(x.ret)+' · <b class="xr-warn">waiting for store keeper</b>');
+    else if(x.status==='IN') rows+=xrR('Returned',fmtTime(x.ret||x.recvAt))+xrR('Received by',`<b>${esc(x.inBy||'store keeper')}</b>`)+(x.cin?xrR('Condition',gradeBadge(x.cin)+(x.note?' '+esc(x.note):'')):'');
+    const how=REP_HOW(x);
+    if(how&&(last||x.noPhone||x.idBy==='nophone'||x.idBy==='typed')) rows+=xrR('Identified by',how);
+  }
+  return `<div class="xr-p${(!x.ghost&&String(x.id)===String(me))?' me':''}"><div class="xr-lab ${cls}">${lab}</div>${xrWho(x,ctx)}${rows}</div>`;
+}
+function xrReq(r,ctx){
+  return `<div class="xr-p"><div class="xr-lab ask">REQUESTED BY</div>${xrWho(r,ctx)}${xrR('Requested',fmtTime(r.req||r.out)+' · '+ago(r.req||r.out)+' ago')}${xrR('Status','<b class="xr-warn">waiting for store keeper</b>')}${REP_HOW(r)?xrR('Identified by',REP_HOW(r)):''}</div>`;
+}
+function xrTotal(list){
+  const real=list.filter(x=>!x.ghost&&x.out);
+  if(real.length<2) return '';
+  const a=real[0], z=real[real.length-1];
+  const endIso=(z.status==='IN'&&!z.passedAt)?(z.ret||z.recvAt):(z.status==='PENDING'?z.ret:null);
+  const h=repHrs((endIso?repT(endIso):Date.now())-repT(a.out));
+  return `<div class="xr-tot"><span>${endIso?'Total time out':'Out of store'}</span>${xrDur(h)}</div>`;
+}
+/* ctx: {k:1} keeper · {key:'YYYY-MM'} report · open:true = always open (keeper card already tapped) */
+function xferRecord(m,ctx){
+  ctx=ctx||{};
+  if(!xrIsX(m)) return '';
+  const C=xferChain(m), list=C.list, req=C.req;
+  if(!list.length) return '';
+  const people=list.length+(req?1:0);
+  const names=list.map(x=>xrShort(techParts(x).name)).concat(req?[xrShort(techParts(req).name)+' (requested)']:[]).join(' → ');
+  const k=(ctx.k?'k':'r')+'|'+(ctx.key||'')+'|'+(ctx.where||'')+'|'+m.id;
+  const fixed=!!ctx.open, isOpen=fixed||!!XR_OPEN[k];
+  const body=list.map((x,i)=>xrBlock(x,i,list,ctx,m.id)).join('')+(req?xrReq(req,ctx):'')+xrTotal(list);
+  return `<div class="xr${isOpen?' open':''}${fixed?' fixed':''}" data-k="${esc(k)}" onclick="event.stopPropagation()"><button class="xr-h" type="button"${fixed?'':` aria-expanded="${isOpen?'true':'false'}" onclick="xrToggle(this)"`}><span class="xr-ic">⇄</span><span class="xr-t">EXCHANGE RECORD · ${people} TECHNICIANS<small>${esc(names)}</small></span>${fixed?'':'<span class="xr-ar">›</span>'}</button><div class="xr-b"><div>${body}</div></div></div>`;
+}
+function xrToggle(btn){ const box=btn.parentNode, o=box.classList.toggle('open'); btn.setAttribute('aria-expanded',o?'true':'false'); XR_OPEN[box.getAttribute('data-k')]=o; }
 let K_OPEN=null;
 function kToggle(id){ const s=String(id); K_OPEN=(K_OPEN===s?null:s); if($('list')) rlist(); else dash(); }
 function pendingScreen(tid,m){
@@ -2343,10 +2471,11 @@ function histToday(){ return toolMoves().filter(m=>isToday(m.out)||isToday(m.ret
 function recvToday(){ return toolMoves().filter(m=>m.status==='IN'&&isToday(m.recvAt||m.ret)).sort((a,b)=>String(b.recvAt||b.ret).localeCompare(String(a.recvAt||a.ret))); }
 /* ONE history row - shared by History and Received today */
 function histRow(m){const t=toolById(m.tid)||[m.tid,'','?'];let s,col;
-    if(m.status==='REQ'){s='Requested · waiting';col='var(--amber)';}else if(m.status==='OUT'){s=isOverdue(m)?'Out · overdue':'Out';col='var(--red)';}else if(m.status==='PENDING'){s='Returned · waiting';col='var(--amber)';}else{s='Returned · received';col='var(--green)';}
-    return `<div class="rec"><div class="hd"><span class="rid">${esc(m.tid)}</span><span class="rname">${esc(t[T_NAME]||'')}</span><span class="badge" style="background:#eef1f5;color:${col}">${s}</span></div>${unitLine(m)}
+    if(m.status==='REQ'){s='Requested · waiting';col='var(--amber)';}else if(m.status==='OUT'){s=isOverdue(m)?'Out · overdue':'Out';col='var(--red)';}else if(m.status==='PENDING'){s='Returned · waiting';col='var(--amber)';}else if(m.passedTo||m.passedToId){s='Handed over';col='#2F3F8F';}else{s='Returned · received';col='var(--green)';}
+    const xr=xrIsX(m);   /* v3322 */
+    return `<div class="rec"><div class="hd"><span class="rid">${esc(m.tid)}</span><span class="rname">${esc(t[T_NAME]||'')}</span><span class="badge" style="background:#eef1f5;color:${col}">${s}</span>${xr?'<span class="badge xfer">⇄ Exchange</span>':''}</div>${unitLine(m)}
       <div class="sub">${techTag(m)}</div>
-      ${xferBadge(m)}${xferIsH2H(m)?`<div class="sub">⇄ Exchange from <b>${esc(m.fromTech||'')}</b>${m.fromWasOverdue?' · was OVERDUE':''}</div>`:''}
+      ${xr?xferRecord(m,{k:1,where:'h'}):''}
       <div class="sub">${m.status==='REQ'?'Requested '+fmtTime(m.req):'OUT '+fmtTime(m.out)+(m.ret?' → IN '+fmtTime(m.recvAt||m.ret):'')}${m.cin?' · '+gradeBadge(m.cin):''}</div>
       ${m.rejBy&&m.rejAt?`<div class="sub">A return was sent back by <b>${esc(m.rejBy)}</b>${m.rejCin?' · he had reported <b>'+m.rejCin+'</b>'+(m.rejNote?': '+esc(m.rejNote):''):''}</div>`:''}
       ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}${m.missPcs?`<div class="sub" style="color:var(--red);font-weight:800">NOT RETURNED: ${esc(m.missPcs)}</div>`:''}${m.note?`<div class="sub">Note: ${esc(m.note)}</div>`:''}</div>`;
@@ -2396,8 +2525,10 @@ function rtechprofile(box){
   const rowHtml=m=>{const t=toolById(m.tid)||[m.tid,'','?'];
     let b='';if(m.status==='OUT')b=isOverdue(m)?'<span class="badge out">Overdue</span>':'<span class="badge" style="background:var(--bluebg);color:var(--blue)">Out</span>';else if(m.status==='REQ')b='<span class="badge pend">Take · waiting</span>';else if(m.status==='PENDING')b='<span class="badge pend">Return · waiting</span>';else b='<span class="badge instore">Returned</span>';
     const dmg=m.cin&&m.cin!=='A';
-    return `<div class="rec"><div class="hd"><span class="rid">${esc(m.tid)}</span><span class="rname">${esc(t[T_NAME]||'(no name)')}</span>${b}</div>${unitLine(m)}
+    const xr=xrIsX(m);   /* v3322 */
+    return `<div class="rec"><div class="hd"><span class="rid">${esc(m.tid)}</span><span class="rname">${esc(t[T_NAME]||'(no name)')}</span>${b}${xr?'<span class="badge xfer">⇄ Exchange</span>':''}</div>${unitLine(m)}
       <div class="sub">${m.status==='REQ'?'Requested '+fmtTime(m.req):'OUT '+fmtTime(m.out)+(m.ret?' → IN '+fmtTime(m.recvAt||m.ret):' · '+ago(m.out)+' ago')}${m.cin?' · '+gradeBadge(m.cin):''}</div>
+      ${xr?xferRecord(m,{k:1,where:'p'}):''}
       ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}${m.note?`<div class="sub">Note: ${esc(m.note)}</div>`:''}
       ${dmg&&m.status==='PENDING'?`<div class="alert red" style="margin:8px 0 0">Defect — check before confirming</div>`:''}
       ${m.status==='PENDING'?`<div class="row2"><button class="btn red sm" onclick="rej('${m.id}')">Reject</button><button class="btn green sm" onclick="${pcNof(m.tid)?`cinPieces('${m.id}')`:`cin('${m.id}')`}">Accept — take back</button></div>`:''}</div>`;
@@ -2702,7 +2833,8 @@ function repReasons(p){ const r=[];                 /* plain words, worst first 
 const repSev=pts=>pts>=6?'out':pts>=3?'pend':pts>0?'blue':'instore';
 /* v28: every tool line shows the full story - technician, who GAVE it, who TOOK IT BACK, times, how he came */
 const REP_HOW=m=>m.noPhone||m.idBy==='nophone'?'No phone - store keeper used his ID':m.idBy==='typed'?'<b style="color:var(--amber)">ID typed (not scanned)</b>':m.idBy==='scan'?'Own QR sticker':m.idBy==='link'?'Own phone link':m.idBy==='tablet'?'Store tablet (picked his name)':'';
-function repWho(m){
+function repWho(m,key){
+  if(m&&m.kind==='TOOL'&&xrIsX(m)) return (m.cin?`<div class="rp-who"><div><span>Condition</span>${gradeBadge(m.cin)}${m.note?' '+esc(m.note):''}</div></div>`:'')+xferRecord(m,{key:key||monthKey(m.out||m.req||Date.now()),where:'r'});   /* v3322 */
   if(!m||m.kind==='ENTRY') return m&&m.kind==='ENTRY'?`<div class="rp-who"><div><span>Cabin entry</span>${fmtTime(m.at)}${m.keeper?' · by <b>'+esc(m.keeper)+'</b>':''}</div>${REP_HOW(m)?`<div><span>How he came</span>${REP_HOW(m)}</div>`:''}</div>`:'';
   const held=m.out?repHrs((m.ret?repT(m.ret):Date.now())-repT(m.out)):0;
   return `<div class="rp-who">
@@ -2721,7 +2853,7 @@ function repEventRow(e,key,showTech){
     <div class="hd"><span class="badge ${e.pts>=3?'out':e.pts>=2?'pend':'blue'}">${esc(REP_WORD[e.type]||e.type)}</span>${(function(){const mm=LOG.find(x=>x.id===e.mid);return mm?xferBadge(mm):'';})()}<span class="rp-when">${fmtTime(e.at)}</span></div>
     ${showTech?`<div class="sub rp-link" onclick="repTech('${key}','${repQ(repKeyOf(e))}')"><b class="tn">${esc(e.tech)}</b> · ${esc(e.sec)}${e.techId?' · ID '+esc(e.techId):''} ›</div>`:''}
     ${e.tid?`<div class="sub rp-link" onclick="repTool('${key}','${repQ(e.tid)}')">Tool <b>${repTag(e)}</b> ${esc(repToolName(e.tid))} ›</div>`:''}
-    <div class="sub">${esc(e.text)}${e.keeper?' · store keeper <b>'+esc(e.keeper)+'</b>':''}</div>${repWho(m)}</div>`;
+    <div class="sub">${esc(e.text)}${e.keeper?' · store keeper <b>'+esc(e.keeper)+'</b>':''}</div>${repWho(m,key)}</div>`;
 }
 function repTechRow(p,key,i){
   const rs=repReasons(p);
@@ -2868,7 +3000,7 @@ function repMoveRow(m,key,showTech){
       <span class="badge ${m.status==='IN'?(L?'pend':'instore'):m.status==='OUT'?(L?'out':'blue'):'pend'}">${st}</span></div>
     ${showTech?`<div class="sub rp-link" onclick="repTech('${key}','${repQ(repKeyOf(m))}')"><b class="tn">${esc(m.tech||'')}</b> · ${esc(m.sec||'')}${m.techId?' · ID '+esc(m.techId):''} ›</div>`:''}
     ${L?`<div class="sub" style="color:var(--red);font-weight:700">${repH1(L.over)} over the ${LIMIT_TXT} limit</div>`:''}
-    ${repWho(m)}
+    ${repWho(m,key)}
     ${m.items?`<div class="sub">Pieces: ${esc(m.items)}</div>`:''}${m.cin==='D'&&m.missPcs?`<div class="sub" style="color:var(--red);font-weight:700">Not returned: ${esc(m.missPcs)}</div>`:''}</div>`;
 }
 /* ---------- one technician, the whole month ---------- */
@@ -3924,7 +4056,7 @@ async function rej(id){ if(!requireKeeper())return;
    - only at a SAFE moment: first screen, technician choice / blocked / cabin-scan screen, store keeper PIN
    screen or dashboard, or while the page is in the background. Never in the middle of taking or returning
    tools, never while typing. A store keeper must type his PIN again after an update. */
-const APP_BUILD=3321;      /* bigger number = newer upload — v3321 report: Late returns + Procedure broken = one profile row per technician (tap = full details); built on 3319 (Grok) */
+const APP_BUILD=3322;      /* bigger number = newer upload — v3322 exchange: one clean EXCHANGE RECORD everywhere (built on 3321) */
 let AU_NEW=0, AU_BUSY=false;
 function auSafe(){
   const a=document.activeElement; if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
