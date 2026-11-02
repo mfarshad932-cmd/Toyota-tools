@@ -942,7 +942,7 @@ function go(where){
 
 function fmtTime(iso){if(!iso)return '—';const d=new Date(iso);return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});}
 function ago(iso){if(!iso)return '\u2014';const ms=Math.max(0,Date.now()-new Date(iso).getTime());const h=Math.floor(ms/3.6e6),m=Math.floor(ms/6e4)%60;if(h>=48){const d=Math.floor(h/24);return d+'d '+(h%24)+'h';}return h>0?h+'h '+m+'m':m+'m';}
-const OVERDUE_H=168, DUE_H=72, LIMIT_TXT='7 days', DUE_TXT='3 days';      /* v3324 (2 Nov, Farshad + Tanweer): overdue after 7 days, warning after 3 days ("4 days left") */
+const OVERDUE_H=168, DUE_H=96, LIMIT_TXT='7 days', DUE_TXT='4 days';      /* v3325 (2 Nov, Farshad): overdue after 7 days, warning after 4 days ("3 days left") */
 function heldMs(m){ return Date.now()-new Date(m.out).getTime(); }
 function isDueSoon(m){ return m.status==='OUT'&&!!m.out&&heldMs(m)>DUE_H*3.6e6&&heldMs(m)<=OVERDUE_H*3.6e6; }
 function leftTxt(m){ const ms=OVERDUE_H*3.6e6-heldMs(m); if(ms<=0) return 'overdue'; if(ms<3.6e6) return Math.ceil(ms/6e4)+' min left';
@@ -1648,11 +1648,11 @@ function xferRecord(m,ctx){
   if(!xrIsX(m)) return '';
   const C=xferChain(m), list=C.list, req=C.req;
   if(!list.length) return '';
-  /* v3324: at most 3 people in the record - the newest ones (a request counts as one). In the report the man's own block stays in view. */
+  /* v3325: ALWAYS the newest 3 people (a waiting request counts as one) - everywhere, also in the report */
   const XMAX=3, total=list.length+(req?1:0);
   let lo=0, hi=list.length;
   const hMax=req?XMAX-1:XMAX;
-  if(list.length>hMax){ lo=list.length-hMax; const meI=list.findIndex(x=>!x.ghost&&String(x.id)===String(m.id)); if(meI>=0&&meI<lo) lo=meI; hi=lo+hMax; }
+  if(list.length>hMax){ lo=list.length-hMax; hi=list.length; }
   const showReq=!!req&&hi===list.length, people=(hi-lo)+(showReq?1:0), hidden=total-people;
   const names=(lo?'… → ':'')+list.slice(lo,hi).map(x=>xrShort(techParts(x).name)).concat(showReq?[xrShort(techParts(req).name)+' (requested)']:[]).join(' → ')+(hi<list.length?' → …':'');
   const k=(ctx.k?'k':'r')+'|'+(ctx.key||'')+'|'+(ctx.where||'')+'|'+m.id;
@@ -4082,7 +4082,7 @@ async function rej(id){ if(!requireKeeper())return;
    - only at a SAFE moment: first screen, technician choice / blocked / cabin-scan screen, store keeper PIN
    screen or dashboard, or while the page is in the background. Never in the middle of taking or returning
    tools, never while typing. A store keeper must type his PIN again after an update. */
-const APP_BUILD=3324;      /* bigger number = newer upload — v3324 (2 Nov): no-phone removed · 7 days · all staff · exchange max 3 · back buttons · reset without names */
+const APP_BUILD=3325;      /* bigger number = newer upload — v3325 (2 Nov): warning after 4 days · exchange always the newest 3 people */
 let AU_NEW=0, AU_BUSY=false;
 function auSafe(){
   const a=document.activeElement; if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
