@@ -467,6 +467,7 @@ button.btn[disabled]{opacity:.42;pointer-events:none}
 .rs-c .k{font-size:10.5px;letter-spacing:.2em;color:#C9A55C;font-weight:800}
 .rs-c .v{font-size:19px;font-weight:800;color:#fff;margin-top:3px}
 .rs-c .v span{font-size:12.5px;font-weight:600;color:#C7CDD4}
+.rs-kp{margin:0 0 10px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.08);color:#E8D9B4;font-size:12.5px;font-weight:600;letter-spacing:.02em}.rs-kp b{color:#fff}
 .rs-row{display:flex;gap:12px;align-items:flex-start;width:100%;padding:12px 2px;border:0;border-bottom:1px solid var(--line);
   background:none;text-align:left;font:inherit;color:var(--ink);cursor:pointer}
 .rs-row:disabled{cursor:default;opacity:.55}
@@ -2274,6 +2275,7 @@ function dash(){
     </button>
     <div class="tabs" id="tabs"></div><div class="card" id="list" style="padding:6px 14px"></div>
     <button class="btn primary" onclick="reportPick()" style="margin-top:10px">Monthly report</button>
+    <button class="btn ghost" id="kReset" onclick="resetScreen(1)" style="margin-top:10px;border-color:#A8352A;color:#A8352A;font-weight:800">&#128465;&nbsp; Reset / clean old data</button>
     <button class="btn ghost" onclick="switchKeeper()" style="margin-top:10px">&#128100; Change store keeper (shift handover)</button>
     <button class="btn ghost" onclick="home()" style="margin-top:10px">Log out</button>
     <div class="center" style="padding:22px 0 4px">
@@ -3150,7 +3152,11 @@ function secretTap(){
      stays locked until a backup of the CURRENT data was made on this phone.
    - The keeper must type his own PIN again and the word RESET.
    - Every reset is written down (kind RESETLOG). That record is never cleared.
-   "EVERYTHING" is a separate red option for a brand-new start (word: RESET ALL). */
+   "EVERYTHING" is a separate red option for a brand-new start (word: RESET ALL).
+   v3326: the SAME page also opens from the visible "Reset / clean old data" button (RS.keeper=true):
+   no names, no EVERYTHING. The names + EVERYTHING are only in the hidden 5-tap owner page. */
+const CREDITS=[['FOUNDER','Mohamed Farshad',''],['SYSTEM CREATOR','FAH MEDIA',''],
+               ['IDEA BY','Mr. Ibrahim','Manager'],['DEDICATED TO','Mr. Ibrahim','Manager']];
 const RS_CATS=[
   {k:'entry',t:'Cabin visits',s:'Who came to the cabin and when'},
   {k:'ret',  t:'Returned tool history',s:'Tools already back in the store'},
@@ -3158,7 +3164,7 @@ const RS_CATS=[
   {k:'dmg',  t:'Closed damage reports',s:'Only the ones already “Replaced with new”'},
   {k:'mt',   t:'Hand-typed tools (MT-)',s:'Only when nothing is out and no record is left on it'}];
 const RS_WORD={entry:'cabin visits',ret:'returned',decl:'declined',dmg:'closed damage',mt:'hand-typed tools'};
-let RS={pick:{entry:true,ret:true,decl:false,dmg:false,mt:false},age:'3m',all:false,busy:false,done:null,bk:null};
+let RS={pick:{entry:true,ret:true,decl:false,dmg:false,mt:false},age:'3m',all:false,busy:false,done:null,bk:null,keeper:false};
 /* which box a record belongs to - null = never cleared by the ticks */
 function rsCat(m){
   if(m.kind==='ENTRY')   return 'entry';
@@ -3178,7 +3184,7 @@ function rsPlan(){
   const keep=rsKeepFrom(RS.age), kt=keep?keep.getTime():null;
   const old=m=>{ if(kt===null) return true; const t=rsWhen(m); return isNaN(t)?true:t<kt; };
   const n={entry:0,ret:0,decl:0,dmg:0,mt:0}, dn={entry:0,ret:0,decl:0,dmg:0,mt:0}, del=new Set();
-  if(RS.all){ LOG.forEach(m=>{ if(m.kind!=='RESETLOG') del.add(m.id); }); return {del,n,dn,keep}; }
+  if(RS.all&&!RS.keeper){ LOG.forEach(m=>{ if(m.kind!=='RESETLOG') del.add(m.id); }); return {del,n,dn,keep}; }
   const mts=[];
   LOG.forEach(m=>{ const c=rsCat(m); if(!c) return; if(c==='mt'){ mts.push(m); return; }
     if(old(m)){ n[c]++; if(RS.pick[c]){ del.add(m.id); dn[c]++; } } });
@@ -3189,10 +3195,12 @@ function rsPlan(){
   return {del,n,dn,keep};
 }
 const rsDate=d=>d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
-function resetScreen(){
+function resetScreen(keeper){
   if(!requireKeeper()) return;
-  curStoreView=null; setTitle('Reset system','Owner area — choose what to clear');
-  if(!RS.busy){ RS.done=null; RS.all=false; RS.bk=null; } rsDraw(true);
+  if(!RS.busy){ RS.keeper=!!keeper; RS.done=null; RS.all=false; RS.bk=null; }   // while a reset runs, the page stays as it was
+  curStoreView=null;
+  if(RS.keeper) setTitle('Reset data','Store keeper — clean old records'); else setTitle('Reset system','Owner area — choose what to clear');
+  rsDraw(true);
 }
 function rsDraw(top){
   const pv=$('rpin')?$('rpin').value:'', wv=$('rword')?$('rword').value:'';
@@ -3221,6 +3229,7 @@ function rsDraw(top){
     <div class="rs-logos">${A?`<img src="${A}" alt="Alsayer">`:''}${T?`<img src="${T}" alt="Toyota" class="t">`:''}</div>
     <div class="rs-ttl">TOYOTA TOOL MANAGEMENT</div>
     <div class="rs-sub">AHMADI TOOL STORE · SINCE 2026</div>
+    ${RS.keeper?`<div class="rs-kp">STORE KEEPER RESET · on duty: <b>${esc(KEEPER?KEEPER.short:'')}</b></div>`:CREDITS.map(c=>`<div class="rs-c"><div class="k">${c[0]}</div><div class="v">${c[1]}${c[2]?`<span> · ${c[2]}</span>`:''}</div></div>`).join('')}
   </div>
   ${done}
   <div class="card"><h3>1 · What to clear</h3>${RS_CATS.map(row).join('')}</div>
@@ -3237,10 +3246,10 @@ function rsDraw(top){
     <input class="big" id="rword" placeholder="${word}" autocomplete="off" autocapitalize="characters" oninput="rcheck()" style="margin-bottom:14px">
     <button class="btn red" id="rbtn" disabled onclick="doReset()">${total?'Clear '+total+' record'+(total!==1?'s':''):'Nothing to clear'}</button>
   </div>
-  <div class="card rs-all${RS.all?' on':''}"><h3 style="color:var(--red)">Full clean start</h3>
+  ${RS.keeper?'':`<div class="card rs-all${RS.all?' on':''}"><h3 style="color:var(--red)">Full clean start</h3>
     <button type="button" class="rs-row" id="rs_all" onclick="rsAll()">${box(RS.all,false)}
       <span class="rs-tx"><b>EVERYTHING — also tools out now</b><small>Only for a brand-new start. Backup is still needed first. Word: RESET ALL</small></span>
-      <span class="rs-n">${LOG.filter(m=>m.kind!=='RESETLOG').length}</span></button></div>
+      <span class="rs-n">${LOG.filter(m=>m.kind!=='RESETLOG').length}</span></button></div>`}
   <div class="card"><h3>Reset history</h3>
     ${hist.length?hist.slice(0,20).map(hrow).join(''):'<div class="rs-note" style="margin:0">No reset yet. Every reset is written here and stays: who, when, what, how many.</div>'}</div>
   <button class="btn ghost" onclick="dash()">Cancel</button>`;
@@ -3249,7 +3258,7 @@ function rsDraw(top){
 }
 function rsTick(k){ if(RS.busy||RS.all) return; RS.pick[k]=!RS.pick[k]; RS.done=null; rsDraw(); }
 function rsAge(k){ if(RS.busy||RS.all) return; RS.age=k; RS.done=null; rsDraw(); }
-function rsAll(){ if(RS.busy) return; RS.all=!RS.all; RS.done=null; if($('rword')) $('rword').value=''; rsDraw(); }
+function rsAll(){ if(RS.busy||RS.keeper) return; RS.all=!RS.all; RS.done=null; if($('rword')) $('rword').value=''; rsDraw(); }
 function rcheck(){
   const b=$('rbtn'); if(!b) return;
   const w=(($('rword')||{}).value||'').trim().toUpperCase().replace(/\s+/g,' ');
@@ -3314,7 +3323,7 @@ async function doReset(){
   const now=new Date().toISOString();
   const rec={kind:'RESETLOG',status:'RESETLOG',out:now,at:now,by:K0.short,byId:K0.id,byName:K0.name,
     mode:RS.all?'everything':RS.age,keepFrom:P.keep?P.keep.toISOString():'',cleared:ok,failed:fail,waiting:wait,backup:file,
-    mtMax};
+    mtMax,via:RS.keeper?'keeper':'owner'};
   Object.keys(RS_WORD).forEach(k=>{ rec['n_'+k]=RS.all?0:P.dn[k]; });
   window.DB.add(rec).catch(saveErr);
   RS.busy=false; RS.done={ok,fail,wait,file}; RS.all=false; RS.bk=null;
@@ -4082,7 +4091,7 @@ async function rej(id){ if(!requireKeeper())return;
    - only at a SAFE moment: first screen, technician choice / blocked / cabin-scan screen, store keeper PIN
    screen or dashboard, or while the page is in the background. Never in the middle of taking or returning
    tools, never while typing. A store keeper must type his PIN again after an update. */
-const APP_BUILD=3325;      /* bigger number = newer upload — v3325 (2 Nov): warning after 4 days · exchange always the newest 3 people */
+const APP_BUILD=3326;      /* bigger number = newer upload — v3326 (3 Nov): secret reset names back · store keeper Reset button (no names, no EVERYTHING) */
 let AU_NEW=0, AU_BUSY=false;
 function auSafe(){
   const a=document.activeElement; if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
