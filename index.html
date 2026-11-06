@@ -1353,10 +1353,10 @@ function techToolList(){
   setTitle('Take tools','Scan or search — many tools OK');
   $('view').innerHTML=`<button class="back" onclick="techStart()">‹ Back</button>
     ${meCard('ENTRY OPEN')}
+    <button class="btn primary" onclick="scanTool()" style="margin-bottom:10px">▦&nbsp; Scan tool QR</button>
+    <button class="btn ghost" onclick="manualScreen('tech')" style="margin-bottom:14px;line-height:1.35">&#9998;&nbsp; Tools not in the list - Click here to Request Manually</button>
     <div id="mine"></div>
-    <div class="searchbar"><input class="big" id="q" placeholder="Scan or search tool…" oninput="tsearch()" autocomplete="off"></div>
-    <button class="btn ghost" onclick="manualScreen('tech')" style="margin-bottom:10px">&#9998; Tool not in list — type it</button>
-    <button class="btn ghost" onclick="scanTool()" style="margin-bottom:14px">▦ Scan tool QR</button>
+    <div class="searchbar"><input class="big" id="q" placeholder="Type to search tool…" oninput="tsearch()" autocomplete="off"></div>
     <div class="card" id="results" style="padding:6px 14px"></div>
     <button class="btn primary" onclick="techLeave()" style="margin-top:14px">Done — leave</button>`;
   paintMine();
@@ -1415,10 +1415,11 @@ function tsearch(){
   if(q){
     list=searchTools(raw);
   } else {
-    list=CATALOG().slice(0,10);          // typed tools are not in the take-list
+    list=CATALOG().slice();              // v3327: ALL tools always shown (Tanweer) - typed tools are not in the take-list
   }
   if(!list.length){box.innerHTML='<div class="empty">No tool found for “'+esc(raw)+'”</div>';return;}
-  box.innerHTML=list.map(t=>{
+  const head=`<div style="margin:10px 4px 6px;font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--ink3)">${q?'FOUND · '+list.length:'ALL TOOLS LIST · '+list.length}</div>`;
+  box.innerHTML=head+list.map(t=>{
     const ls=listState(t[T_ID]);
     const st=ls?(ls.k==='in'?'IN':'SHARED'):toolStatus(t[T_ID]);const m=(!ls&&st!=='IN')?openMove(t[T_ID]):null;
     const over=m&&isOverdue(m);
@@ -1439,7 +1440,7 @@ function tsearch(){
     return `<div class="toolrow" onclick="openTool('${t[T_ID]}')"><div class="id">${t[T_ID]}</div>
       <div class="nm">${esc(t[T_NAME]||'(no name)')} ${b}<small>${meta(t)}</small>${who}</div>
       <div class="go">›</div></div>`;
-  }).join('')+(q?`<div class="muted center" style="padding:8px">${list.length} result${list.length>1?'s':''}</div>`:(CATALOG().length>10?'<div class="muted center" style="padding:10px">Showing first 10 · type to search all '+CATALOG().length+'</div>':''));
+  }).join('');
 }
 function scanTool(){
   TV='input';
@@ -2276,7 +2277,6 @@ function dash(){
     <div class="tabs" id="tabs"></div><div class="card" id="list" style="padding:6px 14px"></div>
     <button class="btn primary" onclick="reportPick()" style="margin-top:10px">Monthly report</button>
     <button class="btn ghost" id="kReset" onclick="resetScreen(1)" style="margin-top:10px;border-color:#A8352A;color:#A8352A;font-weight:800">&#128465;&nbsp; Reset / clean old data</button>
-    <button class="btn ghost" onclick="switchKeeper()" style="margin-top:10px">&#128100; Change store keeper (shift handover)</button>
     <button class="btn ghost" onclick="home()" style="margin-top:10px">Log out</button>
     <div class="center" style="padding:22px 0 4px">
       <span id="secretDot" onclick="secretTap()" style="display:inline-block;width:34px;height:34px;opacity:.18;cursor:default">•</span>
@@ -4091,7 +4091,7 @@ async function rej(id){ if(!requireKeeper())return;
    - only at a SAFE moment: first screen, technician choice / blocked / cabin-scan screen, store keeper PIN
    screen or dashboard, or while the page is in the background. Never in the middle of taking or returning
    tools, never while typing. A store keeper must type his PIN again after an update. */
-const APP_BUILD=3326;      /* bigger number = newer upload — v3326 (3 Nov): secret reset names back · store keeper Reset button (no names, no EVERYTHING) */
+const APP_BUILD=3327;      /* bigger number = newer upload — v3327 (6 Nov, Tanweer): no shift handover button · take screen: Scan QR, Request manually, search, ALL tools list */
 let AU_NEW=0, AU_BUSY=false;
 function auSafe(){
   const a=document.activeElement; if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
