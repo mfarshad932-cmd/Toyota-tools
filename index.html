@@ -771,6 +771,7 @@ function liveRefresh(){
   if(ROLE==='tech' && ME && (TV==='startwait'||TV==='choice')){ if(LOADED && (TV==='startwait'||techSig()!==TS_SIG)) techStart(); return; }
   if(ROLE==='tech' && GATE){
     if(TV==='list'){ if($('results')){ paintMine(); tsearch(); } else techToolList(); }
+    else if(TV==='outs'){ const y=window.scrollY; outToolsScreen(); window.scrollTo(0,y); }
     else if(TV==='status'){ if(tvSig(CUR)!==TVSIG) techToolList(); }
   }
 }
@@ -1354,7 +1355,8 @@ function techToolList(){
   $('view').innerHTML=`<button class="back" onclick="techStart()">‹ Back</button>
     ${meCard('ENTRY OPEN')}
     <button class="btn primary" onclick="scanTool()" style="margin-bottom:10px">▦&nbsp; Scan tool QR</button>
-    <button class="btn ghost" onclick="manualScreen('tech')" style="margin-bottom:14px;line-height:1.35">&#9998;&nbsp; Tools not in the list - Click here to Request Manually</button>
+    <button class="btn ghost" onclick="manualScreen('tech')" style="margin-bottom:10px;line-height:1.35">&#9998;&nbsp; Tools not in the list - Click here to Request Manually</button>
+    <button class="btn ghost" id="btnOuts" onclick="outToolsScreen()" style="margin-bottom:14px">&#8644;&nbsp; Out tools — who has which tool <span id="outN" class="badge out" style="margin-left:6px">${outMoves().length}</span></button>
     <div id="mine"></div>
     <div class="searchbar"><input class="big" id="q" placeholder="Type to search tool…" oninput="tsearch()" autocomplete="off"></div>
     <div class="card" id="results" style="padding:6px 14px"></div>
@@ -1413,10 +1415,11 @@ function tsearch(){
   if(!LOADED){box.innerHTML='<div class="empty">Loading tools\u2026</div>';return;}
   let list;
   if(q){
-    list=searchTools(raw);
+    list=searchTools(raw).concat(mtHits(raw));
   } else {
-    list=CATALOG().slice();              // v3327: ALL tools always shown (Tanweer) - typed tools are not in the take-list
+    list=CATALOG().concat(mtOut());      // v3327: ALL tools always shown (Tanweer) · v3328: + hand-typed tools ONLY while out (gone after return)
   }
+  if($('outN')) $('outN').textContent=outMoves().length;
   if(!list.length){box.innerHTML='<div class="empty">No tool found for “'+esc(raw)+'”</div>';return;}
   const head=`<div style="margin:10px 4px 6px;font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--ink3)">${q?'FOUND · '+list.length:'ALL TOOLS LIST · '+list.length}</div>`;
   box.innerHTML=head+list.map(t=>{
@@ -1431,7 +1434,7 @@ function tsearch(){
     else if(st==='PENDING')b='<span class="badge pend">Return · waiting</span>';
     else b='<span class="badge instore">In store</span>';
     if(t[T_TYPE]==='Set')b+='<span class="badge set">Set</span>';
-    if(isManual(t[T_ID]))b+='<span class="badge pend">Manual</span>';
+    if(isManual(t[T_ID]))b+='<span class="badge pend">Hand typed</span>';
     let who='';
     if(fm)who=`<small style="color:${isOverdue(fm)?'var(--red)':'var(--amber)'};font-weight:600">Out with ${techPlain(fm)} · ${ago(fm.out)} ago${isOverdue(fm)?' · OVERDUE':''}</small>`;
     else if(m&&st==='OUT')who=`<small style="color:${over?'var(--red)':'var(--amber)'};font-weight:600">Out with ${techPlain(m)} · ${ago(m.out)} ago${over?' · OVERDUE':''}</small>`;
@@ -1441,6 +1444,31 @@ function tsearch(){
       <div class="nm">${esc(t[T_NAME]||'(no name)')} ${b}<small>${meta(t)}</small>${who}</div>
       <div class="go">›</div></div>`;
   }).join('');
+}
+/* v3328: a hand-typed tool is in the technician list ONLY after a technician took it (out / coming back).
+   Asked-only = still in the store, not shown. Accepted back = gone by itself (MTOOLS is rebuilt from the log). */
+function mtOut(){ return MTOOLS.filter(t=>openMovesOf(t[T_ID]).some(x=>x.status==='OUT'||x.status==='PENDING')); }
+function mtHits(raw){ const r=String(raw||'').trim().toLowerCase(), q=r.replace(/[-\s]/g,'');
+  if(!q) return [];
+  return mtOut().filter(t=>t[T_ID].toLowerCase().replace(/[-\s]/g,'').includes(q)||(t[T_NAME]||'').toLowerCase().includes(r)||(t[T_PART]||'').toLowerCase().includes(r)); }
+/* v3328 OUT TOOLS: every tool that is out right now, with whom - tap = the tool (hand to hand exchange from there) */
+function outMoves(){ return LOG.filter(m=>m.kind==='TOOL'&&m.status==='OUT'&&m.tid)
+  .sort((a,b)=>(isOverdue(b)-isOverdue(a))||(new Date(a.out||0)-new Date(b.out||0))); }
+function outToolsScreen(){
+  TV='outs'; stopScanner();
+  setTitle('Out tools','Who has which tool now');
+  const L=outMoves(), od=L.filter(isOverdue).length;
+  $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button>
+    <div class="alert info" style="margin:0 0 12px">Tap a tool to see it. To get it from that technician use <b>⇄ Hand to hand exchange</b>.</div>
+    <div class="card" style="padding:6px 14px">
+      <div style="margin:10px 4px 6px;font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--ink3)">OUT NOW · ${L.length}${od?` · <span style="color:var(--red)">${od} OVERDUE</span>`:''}</div>
+      ${L.length?L.map(m=>{ const t=toolOr(m.tid), over=isOverdue(m), mine=ME&&sameTech(m.techId,ME.id);
+        return `<div class="toolrow" onclick="openTool('${esc(m.tid)}'${m.unit?`,'${m.unit}'`:''})"><div class="id">${esc(mvTag(m))}</div>
+          <div class="nm">${esc(t[T_NAME]||'(no name)')} ${over?'<span class="badge out">Overdue</span>':'<span class="badge out">Out</span>'}${isManual(m.tid)?'<span class="badge pend">Hand typed</span>':''}
+          <small style="color:${over?'var(--red)':'var(--amber)'};font-weight:600">${mine?'With YOU':'With '+techPlain(m)} · ${ago(m.out)}${over?' · OVERDUE':''}</small></div>
+          <div class="go">›</div></div>`; }).join(''):'<div class="empty">No tool is out right now</div>'}
+    </div>
+    <button class="btn ghost" onclick="techToolList()">Back to tools</button>`;
 }
 function scanTool(){
   TV='input';
@@ -1501,14 +1529,16 @@ function outWithScreen(tid,m){
   const over=isOverdue(m);
   $('view').innerHTML=`<button class="back" onclick="techToolList()">‹ Back</button>
     <div class="card detail"><div class="tid">${t[T_ID]}</div><div class="tname">${esc(t[T_NAME]||'(no name)')}</div><div class="meta">${meta(t,1)}</div></div>${unitLine(m)}
-    <div class="alert ${over?'red':'warn'}"><b>${m.status==='REQ'?'This tool is already requested.':m.status==='PENDING'?'This tool is coming back.':'This tool is already out.'}</b><br>You cannot take it until it is back in store.</div>
+    ${(m.status==='OUT'&&GATE&&ME&&!sameTech(m.techId,ME.id))
+      ?`<div class="alert ${over?'red':'warn'}"><b>This tool is out with ${esc(String(m.tech).split(' ')[0])}${over?' — OVERDUE':''}.</b><br>Need it now? Use <b>⇄ Hand to hand exchange</b> below.</div>`
+      :`<div class="alert ${over?'red':'warn'}"><b>${m.status==='REQ'?'This tool is already requested.':m.status==='PENDING'?'This tool is coming back.':'This tool is already out.'}</b><br>You cannot take it until it is back in store.</div>`}
     <div class="card"><div class="kv"><span class="k">Taken by</span><span class="v">${techTag(m)}</span></div>
       <div class="kv"><span class="k">Section</span><span class="v">${esc(m.sec)} — ${SEC_FULL[m.sec]||''}</span></div>
       <div class="kv"><span class="k">Since</span><span class="v">${m.out?fmtTime(m.out)+' · '+ago(m.out)+' ago':'not handed over yet'}</span></div>
       ${over?`<div class="kv"><span class="k">Status</span><span class="v" style="color:var(--red)">Overdue</span></div>`:''}
       ${m.outBy?`<div class="kv"><span class="k">Given by</span><span class="v">${esc(m.outBy)}</span></div>`:''}
       ${m.items?`<div class="kv"><span class="k">Pieces taken</span><span class="v">${esc(m.items)}</span></div>`:''}</div>
-    ${(m.status==='OUT'&&GATE&&ME&&!sameTech(m.techId,ME.id))?`<button class="btn green" id="btnFrom" onclick="xferAsk('${m.id}')">⇄ Take it from ${esc(String(m.tech).split(' ')[0])} (hand to hand)</button>`:''}
+    ${(m.status==='OUT'&&GATE&&ME&&!sameTech(m.techId,ME.id))?`<button class="btn green" id="btnFrom" onclick="xferAsk('${m.id}')">⇄ Hand to hand exchange — take from ${esc(String(m.tech).split(' ')[0])}</button>`:''}
     <button class="btn ghost" onclick="techToolList()">Back to tools</button>`;
 }
 /* ===== v31 HAND TO HAND: a technician takes a tool that is OUT with another technician =====
@@ -1522,9 +1552,9 @@ function xferAsk(mid){
   { const od=overdueHeld(ME.id); if(od.length){ overdueBlock(od); return; } }
   TV='input';
   const t=toolOr(m.tid), holdOd=isOverdue(m);
-  setTitle('Take from technician',mvTag(m));
+  setTitle('Hand to hand exchange',mvTag(m));
   $('view').innerHTML=`<button class="back" onclick="openTool('${esc(m.tid)}'${m.unit?`,'${m.unit}'`:''})">‹ Back</button>
-    <div class="actban take"><span class="ar">⇄</span> HAND TO HAND</div>
+    <div class="actban take"><span class="ar">⇄</span> HAND TO HAND EXCHANGE</div>
     <div class="card detail"><div class="tid">${esc(mvTag(m))}</div><div class="tname">${esc(t[T_NAME]||'')}</div></div>
     <div class="card"><div class="kv"><span class="k">Now with</span><span class="v">${techTag(m)}</span></div>
       <div class="kv"><span class="k">Goes to</span><span class="v">${techTag(ME)}</span></div>
@@ -4091,7 +4121,7 @@ async function rej(id){ if(!requireKeeper())return;
    - only at a SAFE moment: first screen, technician choice / blocked / cabin-scan screen, store keeper PIN
    screen or dashboard, or while the page is in the background. Never in the middle of taking or returning
    tools, never while typing. A store keeper must type his PIN again after an update. */
-const APP_BUILD=3327;      /* bigger number = newer upload — v3327 (6 Nov, Tanweer): no shift handover button · take screen: Scan QR, Request manually, search, ALL tools list */
+const APP_BUILD=3328;      /* bigger number = newer upload — v3328 (6 Nov): Out tools button · hand-typed tools in the list only while out · Hand to hand exchange wording */
 let AU_NEW=0, AU_BUSY=false;
 function auSafe(){
   const a=document.activeElement; if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
