@@ -547,7 +547,7 @@ input::placeholder,textarea::placeholder{color:#6A7480;opacity:1}
     <div class="sec-label">Choose your access</div>
     <button class="rolebtn" onclick="go('tech')">
       <span class="ic tech">&#128295;</span>
-      <span><span class="t">Technician</span><span class="d">Scan personal QR or enter ID</span></span>
+      <span><span class="t">Technician</span><span class="d">Enter your ID</span></span>
       <span class="ar">&rsaquo;</span></button>
     <button class="rolebtn" onclick="go('storepin')">
       <span class="ic store">&#128203;</span>
@@ -885,12 +885,12 @@ function isStoreLink(){
   }catch(e){ return false; }
 }
 function needLink(){
-  setTitle('Personal link needed','Use your own QR or ID');
+  setTitle('Personal link needed','Use your own ID');
   $('view').innerHTML=`<div class="card center">
     <div style="font-size:34px;opacity:.35;margin-bottom:6px">&#128273;</div>
     <h3 style="text-align:center">Open your personal link</h3>
     <p class="muted" style="margin:10px 0 0;line-height:1.6">
-      Scan <b>your own technician QR sticker</b>, or type your ID number.
+      Type <b>your own ID number</b>.
     </p>
     <button class="btn primary" onclick="techPickSelf()" style="margin-top:16px">Identify myself</button>
   </div>`;
@@ -968,9 +968,7 @@ function techPickSelf(){
   setTitle('Who are you?','Prove your identity');
   $('view').innerHTML=`<div class="card">
     <h3>Identify yourself</h3>
-    <p class="muted" style="margin:0 0 16px;line-height:1.6">Use your own technician QR sticker, or type your own ID number.</p>
-    <button class="btn primary" onclick="scanSelf()">&#128247; &nbsp;Scan my personal QR</button>
-    <div class="center muted" style="margin:14px 0 12px;font-size:11px;letter-spacing:.14em">— OR —</div>
+    <p class="muted" style="margin:0 0 16px;line-height:1.6">Type your own ID number.</p>
     <label class="f">My ID number</label>
     <input class="big" id="myid" type="tel" inputmode="numeric" autocomplete="off" placeholder="e.g. 2205786" oninput="idCheck()">
     <button class="btn ghost" id="idgo" onclick="idFind()" disabled>Continue</button>
@@ -1374,7 +1372,7 @@ function paintMine(){
   box.innerHTML=`<div class="card" style="padding:6px 14px;margin-bottom:12px"><h3 style="margin:12px 4px 4px">Your tools (${ms.length})</h3>`+ms.map(m=>{
     const t=toolById(m.tid)||[m.tid,'','(tool not in the list)'];
     let b,sub;
-    if(m.status==='REQ'){b='<span class="badge pend">Take · waiting</span>';sub='Waiting hand over';}
+    if(m.status==='REQ'){b='<span class="badge pend">Waiting for approval</span>';sub='Waiting hand over';}
     else if(m.status==='PENDING'){b='<span class="badge pend">Return · waiting</span>';sub='Waiting receive';}
     else{b=isOverdue(m)?'<span class="badge out">Overdue</span>':isDueSoon(m)?dueBadge(m):'<span class="badge" style="background:var(--bluebg);color:var(--blue)">With you</span>';sub='Tap to return';}
     return `<div class="toolrow" onclick="openMineTool('${m.id}')"><div class="id">${esc(mvTag(m))}</div>
@@ -1430,7 +1428,7 @@ function tsearch(){
     const fm=(ls&&ls.k==='full')?(openMovesOf(t[T_ID]).find(x=>x.status==='OUT')||null):null;
     if(st==='SHARED')b=`<span class="badge ${ls.k==='full'&&fm?'out':'pend'}">${ls.label}</span>`;
     else if(st==='OUT')b=over?'<span class="badge out">Overdue</span>':'<span class="badge out">Out</span>';
-    else if(st==='REQ')b='<span class="badge pend">Take · waiting</span>';
+    else if(st==='REQ')b='<span class="badge pend">Waiting for approval</span>';
     else if(st==='PENDING')b='<span class="badge pend">Return · waiting</span>';
     else b='<span class="badge instore">In store</span>';
     if(t[T_TYPE]==='Set')b+='<span class="badge set">Set</span>';
@@ -2586,7 +2584,7 @@ function rtechprofile(box){
       <div class="meta">${esc(info.sec)} · ID ${esc(PROF)}${roleTxt(PROF)}</div>
       <div class="badge">${outNow.length} tool${outNow.length!==1?'s':''} with him now</div></div>`;
   const rowHtml=m=>{const t=toolById(m.tid)||[m.tid,'','?'];
-    let b='';if(m.status==='OUT')b=isOverdue(m)?'<span class="badge out">Overdue</span>':'<span class="badge" style="background:var(--bluebg);color:var(--blue)">Out</span>';else if(m.status==='REQ')b='<span class="badge pend">Take · waiting</span>';else if(m.status==='PENDING')b='<span class="badge pend">Return · waiting</span>';else b=(m.passedTo||m.passedToId)?'<span class="badge xfer">Handed over</span>':'<span class="badge instore">Returned</span>';
+    let b='';if(m.status==='OUT')b=isOverdue(m)?'<span class="badge out">Overdue</span>':'<span class="badge" style="background:var(--bluebg);color:var(--blue)">Out</span>';else if(m.status==='REQ')b='<span class="badge pend">Waiting for approval</span>';else if(m.status==='PENDING')b='<span class="badge pend">Return · waiting</span>';else b=(m.passedTo||m.passedToId)?'<span class="badge xfer">Handed over</span>':'<span class="badge instore">Returned</span>';
     const dmg=m.cin&&m.cin!=='A';
     const xr=xrIsX(m);   /* v3322 */
     return `<div class="rec"><div class="hd"><span class="rid">${esc(m.tid)}</span><span class="rname">${esc(t[T_NAME]||'(no name)')}</span>${b}${xr?'<span class="badge xfer">⇄ Exchange</span>':''}</div>${unitLine(m)}
@@ -2683,7 +2681,7 @@ function openDay(id){ PROF=String(id); TAB='techday'; dtabs(); rlist(); toTabs()
 function ttMove(m,noAct){
   const t=toolOr(m.tid); let b='';
   if(m.status==='OUT')b=isOverdue(m)?'<span class="badge out">Overdue</span>':'<span class="badge blue">With him</span>';
-  else if(m.status==='REQ')b='<span class="badge pend">Take · waiting</span>';
+  else if(m.status==='REQ')b='<span class="badge pend">Waiting for approval</span>';
   else if(m.status==='PENDING')b='<span class="badge pend">Return · waiting</span>';
   else b=(m.passedTo||m.passedToId)?'<span class="badge xfer">Handed over</span>':'<span class="badge instore">Returned</span>';
   const L=[];
@@ -2894,7 +2892,7 @@ function repReasons(p){ const r=[];                 /* plain words, worst first 
   return r; }
 const repSev=pts=>pts>=6?'out':pts>=3?'pend':pts>0?'blue':'instore';
 /* v28: every tool line shows the full story - technician, who GAVE it, who TOOK IT BACK, times, how he came */
-const REP_HOW=m=>m.noPhone||m.idBy==='nophone'?'No phone - store keeper used his ID':m.idBy==='typed'?'<b style="color:var(--amber)">ID typed (not scanned)</b>':m.idBy==='scan'?'Own QR sticker':m.idBy==='link'?'Own phone link':m.idBy==='tablet'?'Store tablet (picked his name)':'';
+const REP_HOW=m=>m.noPhone||m.idBy==='nophone'?'No phone - store keeper used his ID':m.idBy==='typed'?'ID typed':m.idBy==='scan'?'Own QR sticker':m.idBy==='link'?'Own phone link':m.idBy==='tablet'?'Store tablet (picked his name)':'';
 function repWho(m,key){
   if(m&&m.kind==='TOOL'&&xrIsX(m)) return (m.cin?`<div class="rp-who"><div><span>Condition</span>${gradeBadge(m.cin)}${m.note?' '+esc(m.note):''}</div></div>`:'')+xferRecord(m,{key:key||monthKey(m.out||m.req||Date.now()),where:'r'});   /* v3322 */
   if(!m||m.kind==='ENTRY') return m&&m.kind==='ENTRY'?`<div class="rp-who"><div><span>Cabin entry</span>${fmtTime(m.at)}${m.keeper?' · by <b>'+esc(m.keeper)+'</b>':''}</div>${REP_HOW(m)?`<div><span>How he came</span>${REP_HOW(m)}</div>`:''}</div>`:'';
@@ -4121,7 +4119,7 @@ async function rej(id){ if(!requireKeeper())return;
    - only at a SAFE moment: first screen, technician choice / blocked / cabin-scan screen, store keeper PIN
    screen or dashboard, or while the page is in the background. Never in the middle of taking or returning
    tools, never while typing. A store keeper must type his PIN again after an update. */
-const APP_BUILD=3328;      /* bigger number = newer upload — v3328 (6 Nov): Out tools button · hand-typed tools in the list only while out · Hand to hand exchange wording */
+const APP_BUILD=3329;      /* bigger number = newer upload — v3329 (20 Nov, Tanweer): identity = own ID only (no personal QR scan) · 'Waiting for approval' */
 let AU_NEW=0, AU_BUSY=false;
 function auSafe(){
   const a=document.activeElement; if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
